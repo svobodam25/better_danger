@@ -292,6 +292,10 @@ class DockScene:
         else:
             self.ship_vx = 0.0
 
+        # Fly-away abort: if ship goes far left, return to space
+        if self.ship_x < -30:
+            return "abort"
+
         # Apply velocity
         self.ship_x += self.ship_vx * dt
         self.ship_y += self.ship_vy * dt
@@ -525,60 +529,105 @@ class DockScene:
                     (nose_x - 8, nose_y + 5),
                 ], 0)
 
-        # === PLAYER SHIP (detailed model) ===
+        # Target slot big label — centered on screen
+        target = self.slots[self.target_slot_idx]
+        is_ceiling = target.get("ceiling", False)
+        slot_label = f"C{self.target_slot_idx // 2 + 1}" if is_ceiling else f"G{self.target_slot_idx // 2 + 1}"
+        park_text = self.font_large.render(f"PARK IN SLOT {slot_label}", True, color)
+        screen.blit(park_text, (cfg.SCREEN_WIDTH // 2 - park_text.get_width() // 2,
+                                cfg.SCREEN_HEIGHT // 2 - 80))
+
+        # Docking progress indicator — centered on screen
+        if self.docking_timer > 0:
+            progress = min(1.0, self.docking_timer / 1.5)
+            dock_text = self.font_large.render(f"DOCKING... {int(progress * 100)}%", True, color)
+            screen.blit(dock_text, (cfg.SCREEN_WIDTH // 2 - dock_text.get_width() // 2,
+                                    cfg.SCREEN_HEIGHT // 2 - 40))
+            # Progress bar
+            bar_w = 300
+            bar_x = cfg.SCREEN_WIDTH // 2 - bar_w // 2
+            bar_y = cfg.SCREEN_HEIGHT // 2 + 10
+            pygame.draw.rect(screen, color, (bar_x, bar_y, bar_w, 12), 1)
+            pygame.draw.rect(screen, color, (bar_x, bar_y, int(bar_w * progress), 12))
+
+        # === PLAYER SHIP (detailed model, faces direction of movement) ===
         ship_rect = self._get_ship_rect()
         sx, sy, sw, sh = ship_rect.x, ship_rect.y, ship_rect.w, ship_rect.h
-
-        # Main body (filled)
-        body_rect = pygame.Rect(sx + 6, sy, int(sw * 0.7), sh)
-        pygame.draw.rect(screen, color, body_rect, 0)
-
-        # Cockpit window (cutout)
-        cockpit_x = sx + sw - int(sw * 0.35)
-        cockpit_y = sy + 3
-        cockpit_w = int(sw * 0.22)
-        cockpit_h = sh - 6
-        pygame.draw.rect(screen, cfg.BLACK, (cockpit_x, cockpit_y, cockpit_w, cockpit_h), 0)
-        pygame.draw.rect(screen, color, (cockpit_x, cockpit_y, cockpit_w, cockpit_h), 1)
-
-        # Top fin
-        fin_top = [(sx + sw // 2 - 4, sy), (sx + sw // 2 + 4, sy), (sx + sw // 2, sy - 8)]
-        pygame.draw.polygon(screen, color, fin_top, 0)
-
-        # Bottom fin
-        fin_bot = [(sx + sw // 2 - 4, sy + sh), (sx + sw // 2 + 4, sy + sh), (sx + sw // 2, sy + sh + 8)]
-        pygame.draw.polygon(screen, color, fin_bot, 0)
-
-        # Nose cone (longer, sharper)
-        nose_len = 12
-        nose_tip = (sx + sw + nose_len, sy + sh // 2)
-        nose_top = (sx + sw, sy + 2)
-        nose_bot = (sx + sw, sy + sh - 2)
-        pygame.draw.polygon(screen, color, [nose_tip, nose_top, nose_bot], 0)
-
-        # Engine nozzle (rear)
-        engine_w = 8
-        engine_h = sh - 6
-        pygame.draw.rect(screen, color, (sx, sy + 3, engine_w, engine_h), 1)
-
-        # Thrust flame (animated, dual flame)
         keys = pygame.key.get_pressed()
-        if keys[pygame.K_SPACE]:
-            flame_x = sx
-            flame_y = sy + sh // 2
-            # Main flame
-            flame_len = random.randint(10, 20)
-            pygame.draw.line(screen, color,
-                             (flame_x, flame_y - 2),
-                             (flame_x - flame_len, flame_y - 2), 2)
-            pygame.draw.line(screen, color,
-                             (flame_x, flame_y + 2),
-                             (flame_x - flame_len, flame_y + 2), 2)
-            # Center flicker
-            f2_len = random.randint(6, 16)
-            pygame.draw.line(screen, color,
-                             (flame_x, flame_y),
-                             (flame_x - f2_len, flame_y), 3)
+
+        # Facing direction: A = left, D = right
+        facing_right = keys[pygame.K_d] or (not keys[pygame.K_a] and not keys[pygame.K_d])
+
+        if facing_right:
+            # --- FACING RIGHT ---
+            body_rect = pygame.Rect(sx + 6, sy, int(sw * 0.7), sh)
+            pygame.draw.rect(screen, color, body_rect, 0)
+
+            cockpit_x = sx + sw - int(sw * 0.35)
+            cockpit_y = sy + 3
+            cockpit_w = int(sw * 0.22)
+            cockpit_h = sh - 6
+            pygame.draw.rect(screen, cfg.BLACK, (cockpit_x, cockpit_y, cockpit_w, cockpit_h), 0)
+            pygame.draw.rect(screen, color, (cockpit_x, cockpit_y, cockpit_w, cockpit_h), 1)
+
+            fin_top = [(sx + sw // 2 - 4, sy), (sx + sw // 2 + 4, sy), (sx + sw // 2, sy - 8)]
+            pygame.draw.polygon(screen, color, fin_top, 0)
+            fin_bot = [(sx + sw // 2 - 4, sy + sh), (sx + sw // 2 + 4, sy + sh), (sx + sw // 2, sy + sh + 8)]
+            pygame.draw.polygon(screen, color, fin_bot, 0)
+
+            nose_len = 12
+            nose_tip = (sx + sw + nose_len, sy + sh // 2)
+            nose_top = (sx + sw, sy + 2)
+            nose_bot = (sx + sw, sy + sh - 2)
+            pygame.draw.polygon(screen, color, [nose_tip, nose_top, nose_bot], 0)
+
+            engine_w = 8
+            engine_h = sh - 6
+            pygame.draw.rect(screen, color, (sx, sy + 3, engine_w, engine_h), 1)
+
+            if keys[pygame.K_SPACE]:
+                flame_x = sx
+                flame_y = sy + sh // 2
+                flame_len = random.randint(10, 20)
+                pygame.draw.line(screen, color, (flame_x, flame_y - 2), (flame_x - flame_len, flame_y - 2), 2)
+                pygame.draw.line(screen, color, (flame_x, flame_y + 2), (flame_x - flame_len, flame_y + 2), 2)
+                f2_len = random.randint(6, 16)
+                pygame.draw.line(screen, color, (flame_x, flame_y), (flame_x - f2_len, flame_y), 3)
+        else:
+            # --- FACING LEFT ---
+            body_rect = pygame.Rect(sx + sw - 6 - int(sw * 0.7), sy, int(sw * 0.7), sh)
+            pygame.draw.rect(screen, color, body_rect, 0)
+
+            cockpit_x = sx + int(sw * 0.13)
+            cockpit_y = sy + 3
+            cockpit_w = int(sw * 0.22)
+            cockpit_h = sh - 6
+            pygame.draw.rect(screen, cfg.BLACK, (cockpit_x, cockpit_y, cockpit_w, cockpit_h), 0)
+            pygame.draw.rect(screen, color, (cockpit_x, cockpit_y, cockpit_w, cockpit_h), 1)
+
+            fin_top = [(sx + sw // 2 - 4, sy), (sx + sw // 2 + 4, sy), (sx + sw // 2, sy - 8)]
+            pygame.draw.polygon(screen, color, fin_top, 0)
+            fin_bot = [(sx + sw // 2 - 4, sy + sh), (sx + sw // 2 + 4, sy + sh), (sx + sw // 2, sy + sh + 8)]
+            pygame.draw.polygon(screen, color, fin_bot, 0)
+
+            nose_len = 12
+            nose_tip = (sx - nose_len, sy + sh // 2)
+            nose_top = (sx, sy + 2)
+            nose_bot = (sx, sy + sh - 2)
+            pygame.draw.polygon(screen, color, [nose_tip, nose_top, nose_bot], 0)
+
+            engine_w = 8
+            engine_h = sh - 6
+            pygame.draw.rect(screen, color, (sx + sw - engine_w, sy + 3, engine_w, engine_h), 1)
+
+            if keys[pygame.K_SPACE]:
+                flame_x = sx + sw
+                flame_y = sy + sh // 2
+                flame_len = random.randint(10, 20)
+                pygame.draw.line(screen, color, (flame_x, flame_y - 2), (flame_x + flame_len, flame_y - 2), 2)
+                pygame.draw.line(screen, color, (flame_x, flame_y + 2), (flame_x + flame_len, flame_y + 2), 2)
+                f2_len = random.randint(6, 16)
+                pygame.draw.line(screen, color, (flame_x, flame_y), (flame_x + f2_len, flame_y), 3)
 
 
         # Wrong slot warning
