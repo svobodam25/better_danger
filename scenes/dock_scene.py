@@ -262,7 +262,7 @@ class DockScene:
         self.ship_y = max(self.ceiling_y + self.ship_h + 5,
                           min(self.floor_y - self.ship_h - 5, self.ship_y))
         self.collision_cooldown = 0.8
-        self.message = MessageBox(f"WALL! -{int(cfg.WALL_DAMAGE)} HP", self.font_medium, -80)
+        self.message = MessageBox(f"WALL! -{int(cfg.WALL_DAMAGE)} HP", self.font_medium, -120)
 
     def update(self, dt, keys):
         """Update docking scene."""
@@ -316,19 +316,19 @@ class DockScene:
                 if self.gate_collision_cooldown <= 0:
                     self.player.damage(cfg.WALL_DAMAGE)
                     self.gate_collision_cooldown = 0.5
-                    self.message = MessageBox(f"GATE! -{int(cfg.WALL_DAMAGE)} HP", self.font_medium, -80)
+                    self.message = MessageBox(f"GATE! -{int(cfg.WALL_DAMAGE)} HP", self.font_medium, -120)
             elif ship_rect.colliderect(bot_rect):
                 self.ship_x = min(self.ship_x, self.gate_x - bot_rect.w // 2 - self.ship_w // 2 - 2)
                 self.ship_vx = 0
                 if self.gate_collision_cooldown <= 0:
                     self.player.damage(cfg.WALL_DAMAGE)
                     self.gate_collision_cooldown = 0.5
-                    self.message = MessageBox(f"GATE! -{int(cfg.WALL_DAMAGE)} HP", self.font_medium, -80)
+                    self.message = MessageBox(f"GATE! -{int(cfg.WALL_DAMAGE)} HP", self.font_medium, -120)
 
             # Check if passed through gate successfully
             if self._check_passed_gate():
                 self.passed_gate = True
-                self.message = MessageBox("ENTERED HANGAR!", self.font_medium, -80)
+                self.message = MessageBox("ENTERED HANGAR!", self.font_medium, -120)
 
         # === TRAFFIC SHIPS (departing & arriving through gate) ===
         self._update_traffic(dt)
@@ -534,15 +534,13 @@ class DockScene:
         is_ceiling = target.get("ceiling", False)
         slot_label = f"C{self.target_slot_idx // 2 + 1}" if is_ceiling else f"G{self.target_slot_idx // 2 + 1}"
         park_text = self.font_large.render(f"PARK IN SLOT {slot_label}", True, color)
-        screen.blit(park_text, (cfg.SCREEN_WIDTH // 2 - park_text.get_width() // 2,
-                                cfg.SCREEN_HEIGHT // 2 - 80))
+        screen.blit(park_text, (cfg.SCREEN_WIDTH // 2 - park_text.get_width() // 2, 140))
 
         # Docking progress indicator — centered on screen
         if self.docking_timer > 0:
             progress = min(1.0, self.docking_timer / 1.5)
             dock_text = self.font_large.render(f"DOCKING... {int(progress * 100)}%", True, color)
-            screen.blit(dock_text, (cfg.SCREEN_WIDTH // 2 - dock_text.get_width() // 2,
-                                    cfg.SCREEN_HEIGHT // 2 - 40))
+            screen.blit(dock_text, (cfg.SCREEN_WIDTH // 2 - dock_text.get_width() // 2, 170))
             # Progress bar
             bar_w = 300
             bar_x = cfg.SCREEN_WIDTH // 2 - bar_w // 2
