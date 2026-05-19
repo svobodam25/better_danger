@@ -38,36 +38,35 @@ class DockScene:
         self.ship_h = 20
         self.angle = 0.0
 
-        # Gravity & thrust — FASTER
-        self.gravity = 350.0          # px/s² downward
-        self.thrust_power = 420.0     # px/s² upward
-        self.horizontal_speed = 280.0 # px/s horizontal
+        # Gravity & thrust — MUCH STRONGER
+        self.gravity = 400.0          # px/s² downward
+        self.thrust_power = 600.0     # px/s² upward
+        self.horizontal_speed = 320.0 # px/s horizontal
 
         # Gate (STATIC — does not move)
         self.gate_x = self.hangar_left
         self.gate_gap = 200           # height of the opening (wider)
         self.gate_center = float(h // 2)  # fixed at center
 
-        # Many parking slots inside hangar — BIGGER slots
+        # Parking slots — 3 on ceiling, 3 on floor (magnetic clamp stations)
         self.slots = []
-        slot_w = 90
-        slot_h = 45
-        slot_gap = 20
-        slots_per_row = 5
-        start_x = int(self.hangar_left + 100)
-        start_y = int(self.ceiling_y + 60)
-        total_slots = slots_per_row * 3  # 3 rows of 5 = 15 slots
+        slot_w = 100
+        slot_h = 40
+        slot_gap = 30
+        total_slots = 6  # 3 ceiling + 3 floor
+        start_x = int(self.hangar_left + 200)  # pushed far right by gate
 
-        for i in range(total_slots):
-            row = i // slots_per_row
-            col = i % slots_per_row
-            sx = start_x + col * (slot_w + slot_gap)
-            sy = start_y + row * (slot_h + 30)
-            # Ensure all rows fit inside hangar
-            sy = min(sy, self.floor_y - slot_h - 10)
+        for i in range(3):
+            sx = start_x + i * (slot_w + slot_gap)
+            # Ceiling slot
             self.slots.append({
-                "x": sx, "y": sy, "w": slot_w, "h": slot_h,
-                "occupied": False, "target": False,
+                "x": sx, "y": self.ceiling_y, "w": slot_w, "h": slot_h,
+                "occupied": False, "target": False, "ceiling": True,
+            })
+            # Floor slot
+            self.slots.append({
+                "x": sx, "y": self.floor_y - slot_h, "w": slot_w, "h": slot_h,
+                "occupied": False, "target": False, "ceiling": False,
             })
 
         # Pick random target slot
@@ -78,6 +77,10 @@ class DockScene:
         for i in range(total_slots):
             if i != self.target_slot_idx and random.random() < 0.4:
                 self.slots[i]["occupied"] = True
+
+        self.clamped = False        # True when grabbed by a slot
+        self.clamped_at_ceiling = False
+        self.docking_timer = 0.0    # countdown when parked in target slot
 
         # State
         self.passed_gate = False
@@ -107,15 +110,16 @@ class DockScene:
         )
 
     def _get_gate_rects(self):
-        """Get top and bottom gate barrier rects."""
+        """Get top and bottom gate barrier rects — VERY THICK gate (10x)."""
         half_gap = self.gate_gap // 2
+        gate_thickness = 140
         top_rect = pygame.Rect(
-            self.gate_x - 3, 0,
-            6, int(self.gate_center - half_gap)
+            self.gate_x - gate_thickness // 2, 0,
+            gate_thickness, int(self.gate_center - half_gap)
         )
         bot_rect = pygame.Rect(
-            self.gate_x - 3, int(self.gate_center + half_gap),
-            6, cfg.SCREEN_HEIGHT
+            self.gate_x - gate_thickness // 2, int(self.gate_center + half_gap),
+            gate_thickness, cfg.SCREEN_HEIGHT
         )
         return top_rect, bot_rect
 
@@ -137,7 +141,7 @@ class DockScene:
         # and the ship's vertical position within the gap
         half_gap = self.gate_gap // 2
         ship_rect = self._get_ship_rect()
-        if ship_rect.left > self.gate_x + 15:
+        if ship_rect.left > self.gate_x + 20:
             # Check if within gap vertically
             if self.gate_center - half_gap < self.ship_y < self.gate_center + half_gap:
                 return True
@@ -162,9 +166,17 @@ class DockScene:
         center_x = slot["x"] + slot["w"] / 2
         center_y = slot["y"] + slot["h"] / 2
         dx = abs(self.ship_x - center_x)
-        dy = abs(self.ship_y - center_y)
+
+        # For ceiling slots: ship must be just below the slot
+        # For floor slots: ship must be just above the slot
+        if slot.get("ceiling", False):
+            expected_y = slot["y"] + slot["h"] + self.ship_h // 2 + 2
+        else:
+            expected_y = slot["y"] - self.ship_h // 2 - 2
+        dy = abs(self.ship_y - expected_y)
+
         return (dx < cfg.DOCK_TOLERANCE_POS and
-                dy < cfg.DOCK_TOLERANCE_POS)
+                dy < cfg.DOCK_TOLERANCE_POS + 15)
 
     def _spawn_traffic_ship(self):
         """Spawn a ship departing from inside the hangar or arriving from outside."""
@@ -264,8 +276,9 @@ class DockScene:
         # Gate is STATIC — no movement
 
         # === PLAYER CONTROLS ===
-        # Gravity always pulls down
-        self.ship_vy += self.gravity * dt
+        # Gravity pulls down (unless clamped to a station)
+        if not self.clamped:
+            self.ship_vy += self.gravity * dt
 
         # SPACE = thrust upward
         if keys[pygame.K_SPACE]:
@@ -286,16 +299,27 @@ class DockScene:
         # Clamp to screen bounds
         self.ship_x = max(self.ship_w // 2, min(cfg.SCREEN_WIDTH - self.ship_w // 2, self.ship_x))
 
-        # Check gate collision BEFORE passing
+        # Gate collision — HARD WALL, cannot pass through solid gate
         if not self.passed_gate:
-            if self._check_gate_collision():
-                self.player.damage(cfg.WALL_DAMAGE * 2)
-                self.gate_collision_cooldown = 1.0
-                # Bounce ship back left
-                self.ship_x = self.gate_x - self.ship_w - 10
+            ship_rect = self._get_ship_rect()
+            top_rect, bot_rect = self._get_gate_rects()
+
+            # Hard block: if ship overlaps gate, push it back
+            if ship_rect.colliderect(top_rect):
+                # Ship hit top gate — push to the left side
+                self.ship_x = min(self.ship_x, self.gate_x - top_rect.w // 2 - self.ship_w // 2 - 2)
                 self.ship_vx = 0
-                self.ship_vy = -100
-                self.message = MessageBox(f"GATE CRASH! -{int(cfg.WALL_DAMAGE * 2)} HP", self.font_medium, -80)
+                if self.gate_collision_cooldown <= 0:
+                    self.player.damage(cfg.WALL_DAMAGE)
+                    self.gate_collision_cooldown = 0.5
+                    self.message = MessageBox(f"GATE! -{int(cfg.WALL_DAMAGE)} HP", self.font_medium, -80)
+            elif ship_rect.colliderect(bot_rect):
+                self.ship_x = min(self.ship_x, self.gate_x - bot_rect.w // 2 - self.ship_w // 2 - 2)
+                self.ship_vx = 0
+                if self.gate_collision_cooldown <= 0:
+                    self.player.damage(cfg.WALL_DAMAGE)
+                    self.gate_collision_cooldown = 0.5
+                    self.message = MessageBox(f"GATE! -{int(cfg.WALL_DAMAGE)} HP", self.font_medium, -80)
 
             # Check if passed through gate successfully
             if self._check_passed_gate():
@@ -305,8 +329,25 @@ class DockScene:
         # === TRAFFIC SHIPS (departing & arriving through gate) ===
         self._update_traffic(dt)
 
-        # Wall collision (ceiling/floor)
-        if self._check_wall_collision():
+        # Clamp check — magnetic grab at slot stations (ceiling/floor)
+        ship_rect = self._get_ship_rect()
+        was_clamped = self.clamped
+        self.clamped = False
+        for slot in self.slots:
+            slot_rect = pygame.Rect(slot["x"], slot["y"], slot["w"], slot["h"])
+            if ship_rect.colliderect(slot_rect):
+                self.clamped = True
+                self.clamped_at_ceiling = slot.get("ceiling", False)
+                # Snap to slot
+                if self.clamped_at_ceiling:
+                    self.ship_y = slot["y"] + slot["h"] + self.ship_h // 2 + 1
+                else:
+                    self.ship_y = slot["y"] - self.ship_h // 2 - 1
+                self.ship_vy = 0
+                break
+
+        # Wall collision (ceiling/floor) — only if not clamped
+        if not self.clamped and self._check_wall_collision():
             self._bounce_off_wall()
 
         # Collision with parked AI ships in occupied slots
@@ -322,11 +363,15 @@ class DockScene:
 
         # Check parking — only after passing gate
         if self.passed_gate:
-            # Check if parked in target slot
+            # Check if parked in target slot — 1.5s docking sequence
             if self._check_parked_in_slot(self.target_slot_idx):
                 self.ship_vx = 0
                 self.ship_vy = 0
-                return "success"
+                self.docking_timer += dt
+                if self.docking_timer >= 1.5:
+                    return "success"
+            else:
+                self.docking_timer = 0.0
 
             # Check if parked in wrong slot
             for i in range(len(self.slots)):
@@ -373,8 +418,13 @@ class DockScene:
             pygame.draw.line(screen, color, (x, self.ceiling_y), (x + 15, self.ceiling_y + 7), 1)
             pygame.draw.line(screen, color, (x, self.floor_y), (x + 15, self.floor_y - 7), 1)
 
-        # Hangar left wall
+        # Hangar left wall — split by gate gap (no line through the opening)
+        half_gap = self.gate_gap // 2
+        gap_top = int(self.gate_center - half_gap)
+        gap_bot = int(self.gate_center + half_gap)
         pygame.draw.line(screen, color, (self.hangar_left, self.ceiling_y),
+                         (self.hangar_left, gap_top), 2)
+        pygame.draw.line(screen, color, (self.hangar_left, gap_bot),
                          (self.hangar_left, self.floor_y), 2)
 
         # === OUTSIDE AREA (left of gate) ===
@@ -384,33 +434,35 @@ class DockScene:
         pygame.draw.line(screen, color, (0, self.floor_y),
                          (self.hangar_left, self.floor_y), 1)
 
-        # === GATE (Flappy Bird style barriers) ===
-        gate_color = (200, 200, 200)  # slightly dimmer white for gate
+        # === GATE (massive thick barriers, clean gap opening) ===
         top_rect, bot_rect = self._get_gate_rects()
-        # Gate bars with hatch pattern
+        half_gap = self.gate_gap // 2
+        gap_top = int(self.gate_center - half_gap)
+        gap_bot = int(self.gate_center + half_gap)
+
+        # Gate bars — solid white blocks
         pygame.draw.rect(screen, color, top_rect)
         pygame.draw.rect(screen, color, bot_rect)
-        # Gate frame
-        pygame.draw.line(screen, color, (self.gate_x, self.ceiling_y), (self.gate_x, self.floor_y), 1)
 
-        # Gate label
+        # Diagonal hazard stripes on the gate
+        for gy in range(0, top_rect.height, 10):
+            x0 = top_rect.x
+            x1 = top_rect.x + top_rect.w
+            pygame.draw.line(screen, cfg.BLACK, (x0, gy), (x1, gy + 10), 2)
+        for gy in range(bot_rect.y, bot_rect.y + bot_rect.height, 10):
+            x0 = bot_rect.x
+            x1 = bot_rect.x + bot_rect.w
+            pygame.draw.line(screen, cfg.BLACK, (x0, gy), (x1, gy + 10), 2)
+
+        # Clean gap — no lines inside the opening, just open space
+        # Vertical edges of the gate on each side of the gap
+        gate_left = top_rect.x
+        gate_right = top_rect.x + top_rect.w
+
+        # Gate label centered above
         label = self.font_small.render("GATE", True, color)
         screen.blit(label, (self.gate_x - label.get_width() // 2, self.ceiling_y - 18))
 
-        # Gate gap indicator arrows
-        half_gap = self.gate_gap // 2
-        arrow_y_top = int(self.gate_center - half_gap)
-        arrow_y_bot = int(self.gate_center + half_gap)
-        pygame.draw.polygon(screen, color, [
-            (self.gate_x - 10, arrow_y_top),
-            (self.gate_x + 10, arrow_y_top),
-            (self.gate_x, arrow_y_top + 8)
-        ], 0)
-        pygame.draw.polygon(screen, color, [
-            (self.gate_x - 10, arrow_y_bot),
-            (self.gate_x + 10, arrow_y_bot),
-            (self.gate_x, arrow_y_bot - 8)
-        ], 0)
 
         # === TRAFFIC SHIPS (departing / arriving) ===
         for tship in self.traffic_ships:
@@ -430,39 +482,41 @@ class DockScene:
                 nose_base_r = (t_rect.x, t_rect.y + t_rect.h - 2)
             pygame.draw.polygon(screen, color, [nose_tip, nose_base_l, nose_base_r], 0)
 
-        # === PARKING SLOTS ===
+        # === PARKING SLOTS (magnetic clamp stations — 3 ceiling + 3 floor) ===
         for i, slot in enumerate(self.slots):
             rect = pygame.Rect(slot["x"], slot["y"], slot["w"], slot["h"])
-            if slot["target"]:
-                # Blinking target slot
-                alpha = (math.sin(self.flash_timer * 5) + 1) / 2
-                if alpha > 0.4:
-                    pygame.draw.rect(screen, color, rect, 2)
-                    # Arrow pointing to slot
-                    arrow_cx = slot["x"] + slot["w"] // 2
-                    pygame.draw.polygon(screen, color, [
-                        (arrow_cx, slot["y"] - 10),
-                        (arrow_cx - 6, slot["y"] - 3),
-                        (arrow_cx + 6, slot["y"] - 3),
-                    ], 0)
+            is_ceiling = slot.get("ceiling", False)
+
+            # Slot body (clamp-style with diagonal grip lines)
+            pygame.draw.rect(screen, color, rect, 0)
+            # Diagonal grip lines
+            for gx in range(rect.x + 4, rect.x + rect.w - 4, 10):
+                if is_ceiling:
+                    pygame.draw.line(screen, cfg.BLACK, (gx, rect.y), (gx + 8, rect.y + rect.h), 2)
                 else:
-                    pygame.draw.rect(screen, color, rect, 1)
-                num_surf = self.font_small.render(f"PARK {i + 1}", True, color)
+                    pygame.draw.line(screen, cfg.BLACK, (gx, rect.y + rect.h), (gx + 8, rect.y), 2)
+
+            if slot["target"]:
+                # Blinking target slot — thick white border
+                alpha = (math.sin(self.flash_timer * 5) + 1) / 2
+                border_w = 3 if alpha > 0.4 else 1
+                pygame.draw.rect(screen, color, rect, border_w)
             else:
                 pygame.draw.rect(screen, color, rect, 1)
-                num_surf = self.font_small.render(f"{i + 1}", True, color)
 
-            screen.blit(num_surf, (slot["x"] + slot["w"] // 2 - num_surf.get_width() // 2,
-                                   slot["y"] - 16))
+            # Slot number — C for ceiling, G for ground
+            label_text = f"C{i // 2 + 1}" if is_ceiling else f"G{i // 2 + 1}"
+            num_surf = self.font_small.render(label_text, True, color)
+            label_y = rect.y - 16 if is_ceiling else rect.y + rect.h + 4
+            screen.blit(num_surf, (rect.x + rect.w // 2 - num_surf.get_width() // 2, label_y))
 
             # Draw AI ship in occupied slot
             if slot["occupied"]:
                 ai_rect = pygame.Rect(
-                    slot["x"] + 5, slot["y"] + 3,
-                    slot["w"] - 10, slot["h"] - 6
+                    rect.x + 5, rect.y + 3,
+                    rect.w - 10, rect.h - 6
                 )
                 pygame.draw.rect(screen, color, ai_rect, 1)
-                # Simple triangle nose
                 nose_x = ai_rect.x + ai_rect.w
                 nose_y = ai_rect.y + ai_rect.h // 2
                 pygame.draw.polygon(screen, color, [
@@ -471,41 +525,61 @@ class DockScene:
                     (nose_x - 8, nose_y + 5),
                 ], 0)
 
-        # === PLAYER SHIP ===
-        # Side-view ship rectangle with triangle nose
+        # === PLAYER SHIP (detailed model) ===
         ship_rect = self._get_ship_rect()
-        pygame.draw.rect(screen, color,
-                         (ship_rect.x, ship_rect.y, ship_rect.w, ship_rect.h), 0)
-        # Nose
-        nose_tip = (ship_rect.x + ship_rect.w + 8, ship_rect.y + ship_rect.h // 2)
-        nose_top = (ship_rect.x + ship_rect.w, ship_rect.y + 2)
-        nose_bot = (ship_rect.x + ship_rect.w, ship_rect.y + ship_rect.h - 2)
+        sx, sy, sw, sh = ship_rect.x, ship_rect.y, ship_rect.w, ship_rect.h
+
+        # Main body (filled)
+        body_rect = pygame.Rect(sx + 6, sy, int(sw * 0.7), sh)
+        pygame.draw.rect(screen, color, body_rect, 0)
+
+        # Cockpit window (cutout)
+        cockpit_x = sx + sw - int(sw * 0.35)
+        cockpit_y = sy + 3
+        cockpit_w = int(sw * 0.22)
+        cockpit_h = sh - 6
+        pygame.draw.rect(screen, cfg.BLACK, (cockpit_x, cockpit_y, cockpit_w, cockpit_h), 0)
+        pygame.draw.rect(screen, color, (cockpit_x, cockpit_y, cockpit_w, cockpit_h), 1)
+
+        # Top fin
+        fin_top = [(sx + sw // 2 - 4, sy), (sx + sw // 2 + 4, sy), (sx + sw // 2, sy - 8)]
+        pygame.draw.polygon(screen, color, fin_top, 0)
+
+        # Bottom fin
+        fin_bot = [(sx + sw // 2 - 4, sy + sh), (sx + sw // 2 + 4, sy + sh), (sx + sw // 2, sy + sh + 8)]
+        pygame.draw.polygon(screen, color, fin_bot, 0)
+
+        # Nose cone (longer, sharper)
+        nose_len = 12
+        nose_tip = (sx + sw + nose_len, sy + sh // 2)
+        nose_top = (sx + sw, sy + 2)
+        nose_bot = (sx + sw, sy + sh - 2)
         pygame.draw.polygon(screen, color, [nose_tip, nose_top, nose_bot], 0)
-        # Thrust flame when thrusting
+
+        # Engine nozzle (rear)
+        engine_w = 8
+        engine_h = sh - 6
+        pygame.draw.rect(screen, color, (sx, sy + 3, engine_w, engine_h), 1)
+
+        # Thrust flame (animated, dual flame)
         keys = pygame.key.get_pressed()
         if keys[pygame.K_SPACE]:
-            flame_x = ship_rect.x - 2
-            flame_y = ship_rect.y + ship_rect.h // 2
-            flame_len = random.randint(6, 14)
+            flame_x = sx
+            flame_y = sy + sh // 2
+            # Main flame
+            flame_len = random.randint(10, 20)
+            pygame.draw.line(screen, color,
+                             (flame_x, flame_y - 2),
+                             (flame_x - flame_len, flame_y - 2), 2)
+            pygame.draw.line(screen, color,
+                             (flame_x, flame_y + 2),
+                             (flame_x - flame_len, flame_y + 2), 2)
+            # Center flicker
+            f2_len = random.randint(6, 16)
             pygame.draw.line(screen, color,
                              (flame_x, flame_y),
-                             (flame_x - flame_len, flame_y), 2)
+                             (flame_x - f2_len, flame_y), 3)
 
-        # === INSTRUCTIONS ===
-        instr = "SPACE:Thrust  A/D:Move  Gravity:Pull  ESC:Abort"
-        instr_surf = self.font_small.render(instr, True, color)
-        screen.blit(instr_surf, (cfg.SCREEN_WIDTH // 2 - instr_surf.get_width() // 2, 6))
-
-        # Gate status and wrong slot warning
-        if not self.passed_gate:
-            gate_hint = self.font_medium.render("FLY THROUGH THE GATE!", True, color)
-            screen.blit(gate_hint, (cfg.SCREEN_WIDTH // 2 - gate_hint.get_width() // 2,
-                                    cfg.SCREEN_HEIGHT // 2 - 150))
-        else:
-            target = self.slots[self.target_slot_idx]
-            park_hint = self.font_medium.render(f"PARK IN SLOT {self.target_slot_idx + 1}!", True, color)
-            screen.blit(park_hint, (cfg.SCREEN_WIDTH // 2 - park_hint.get_width() // 2,
-                                    cfg.SCREEN_HEIGHT // 2 - 150))
 
         # Wrong slot warning
         if self.wrong_slot_timer > 0 and self.passed_gate:

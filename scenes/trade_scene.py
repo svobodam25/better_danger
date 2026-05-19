@@ -22,9 +22,12 @@ class TradeScene:
         self.input_active = False
         self.quantity_input = None
         self.buy_mode = True  # True = buying, False = selling
+        self._leave_requested = False
 
         # Load map data
-        with open("better_danger/data/items.json", "r") as f:
+        import os
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(base_dir, "data", "items.json"), "r") as f:
             self.items_data = json.load(f)
 
     def handle_input(self, event):
@@ -39,7 +42,8 @@ class TradeScene:
 
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
-                return "leave"
+                self._leave_requested = True
+                return None
             elif event.key == pygame.K_TAB:
                 self.current_section = (self.current_section + 1) % len(self.SECTIONS)
                 self.scroll_offset = 0
@@ -199,6 +203,8 @@ class TradeScene:
             self.message = MessageBox(f"Installed: {name}!", self.font_medium)
 
     def update(self, dt):
+        if self._leave_requested:
+            return "leave"
         if self.message:
             if self.message.update(dt):
                 self.message = None
