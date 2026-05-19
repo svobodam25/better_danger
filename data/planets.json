@@ -1,0 +1,164 @@
+{
+  "systems": {
+    "alpha": {
+      "name": "Alpha System",
+      "center_x": 0,
+      "center_y": 0,
+      "star_radius": 40,
+      "planets": ["nova_prime", "sand_haven", "tech_core"]
+    },
+    "beta": {
+      "name": "Beta System",
+      "center_x": 25000,
+      "center_y": 0,
+      "star_radius": 35,
+      "planets": ["deep_mine", "oasis", "circuit_city"]
+    }
+  },
+  "planets": {
+    "nova_prime": {
+      "name": "Nova Prime",
+      "type": "mining",
+      "x": 0,
+      "y": 0,
+      "system": "alpha",
+      "radius": 22,
+      "prices": {
+        "iron": {"buy": 10, "sell": 8},
+        "water": {"buy": 50, "sell": 45},
+        "electronics": {"buy": 120, "sell": 110},
+        "fuel_cell": {"buy": 30, "sell": 25},
+        "meds": {"buy": 90, "sell": 80}
+      },
+      "stock": {
+        "iron": 999,
+        "water": 500,
+        "electronics": 200,
+        "fuel_cell": 400,
+        "meds": 300
+      },
+      "upgrades_available": ["retro_thrusters", "cargo_upgrade"],
+      "maps_for_sale": ["map_sand_haven", "map_tech_core"]
+    },
+    "sand_haven": {
+      "name": "Sand Haven",
+      "type": "desert",
+      "x": 1800,
+      "y": 600,
+      "system": "alpha",
+      "radius": 18,
+      "prices": {
+        "iron": {"buy": 80, "sell": 70},
+        "water": {"buy": 200, "sell": 180},
+        "electronics": {"buy": 150, "sell": 130},
+        "fuel_cell": {"buy": 60, "sell": 50},
+        "meds": {"buy": 40, "sell": 35}
+      },
+      "stock": {
+        "iron": 300,
+        "water": 100,
+        "electronics": 250,
+        "fuel_cell": 300,
+        "meds": 600
+      },
+      "upgrades_available": ["retro_thrusters", "engine_upgrade"],
+      "maps_for_sale": ["map_nova_prime", "map_sector_alpha"]
+    },
+    "tech_core": {
+      "name": "Tech Core",
+      "type": "tech",
+      "x": -1200,
+      "y": 1500,
+      "system": "alpha",
+      "radius": 16,
+      "prices": {
+        "iron": {"buy": 30, "sell": 25},
+        "water": {"buy": 60, "sell": 55},
+        "electronics": {"buy": 40, "sell": 35},
+        "fuel_cell": {"buy": 20, "sell": 18},
+        "meds": {"buy": 100, "sell": 90}
+      },
+      "stock": {
+        "iron": 400,
+        "water": 300,
+        "electronics": 800,
+        "fuel_cell": 600,
+        "meds": 200
+      },
+      "upgrades_available": ["hyperdrive", "cargo_upgrade"],
+      "maps_for_sale": ["map_sector_alpha", "map_beta_system"]
+    },
+    "deep_mine": {
+      "name": "Deep Mine",
+      "type": "mining",
+      "x": 25800,
+      "y": -400,
+      "system": "beta",
+      "radius": 24,
+      "prices": {
+        "iron": {"buy": 8, "sell": 6},
+        "water": {"buy": 55, "sell": 48},
+        "electronics": {"buy": 130, "sell": 115},
+        "fuel_cell": {"buy": 15, "sell": 12},
+        "meds": {"buy": 95, "sell": 85}
+      },
+      "stock": {
+        "iron": 999,
+        "water": 400,
+        "electronics": 150,
+        "fuel_cell": 700,
+        "meds": 250
+      },
+      "upgrades_available": ["retro_thrusters", "engine_upgrade"],
+      "maps_for_sale": ["map_oasis", "map_circuit_city"]
+    },
+    "oasis": {
+      "name": "Oasis",
+      "type": "desert",
+      "x": 24100,
+      "y": -900,
+      "system": "beta",
+      "radius": 17,
+      "prices": {
+        "iron": {"buy": 85, "sell": 75},
+        "water": {"buy": 220, "sell": 195},
+        "electronics": {"buy": 160, "sell": 140},
+        "fuel_cell": {"buy": 65, "sell": 55},
+        "meds": {"buy": 35, "sell": 30}
+      },
+      "stock": {
+        "iron": 250,
+        "water": 80,
+        "electronics": 200,
+        "fuel_cell": 250,
+        "meds": 700
+      },
+      "upgrades_available": ["cargo_upgrade"],
+      "maps_for_sale": ["map_deep_mine", "map_beta_system"]
+    },
+    "circuit_city": {
+      "name": "Circuit City",
+      "type": "tech",
+      "x": 25600,
+      "y": 1000,
+      "system": "beta",
+      "radius": 15,
+      "prices": {
+        "iron": {"buy": 28, "sell": 24},
+        "water": {"buy": 58, "sell": 52},
+        "electronics": {"buy": 35, "sell": 32},
+        "fuel_cell": {"buy": 18, "sell": 16},
+        "meds": {"buy": 105, "sell": 95}
+      },
+      "stock": {
+        "iron": 350,
+        "water": 280,
+        "electronics": 900,
+        "fuel_cell": 550,
+        "meds": 180
+      },
+      "upgrades_available": ["engine_upgrade", "hyperdrive"],
+      "maps_for_sale": ["map_sector_beta"]
+    }
+  }
+}

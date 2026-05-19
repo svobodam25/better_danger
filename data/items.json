@@ -1,0 +1,22 @@
+{
+  "maps": {
+    "map_basic": {
+      "name": "Basic Star Chart",
+      "cost": 150,
+      "reveals": 1,
+      "desc": "Reveals 1 nearby planet"
+    },
+    "map_sector": {
+      "name": "Sector Map",
+      "cost": 400,
+      "reveals": 3,
+      "desc": "Reveals 3 nearby planets"
+    },
+    "map_advanced": {
+      "name": "Advanced Atlas",
+      "cost": 1000,
+      "reveals": 6,
+      "desc": "Reveals 6 nearby planets"
+    }
+  }
+}
