@@ -2,19 +2,15 @@ import math
 import settings as cfg
 
 
-<<<<<<< HEAD
 def apply_thrust(player, dt, reverse=False, boost_multiplier=1.0):
-    """Apply newtonian thrust in the direction the ship is facing."""
-=======
-def apply_thrust(player, dt, reverse=False):
     """Apply newtonian thrust in the direction the ship is facing.
-    Retro (reverse) thrust is weaker than forward thrust — stopping is harder."""
->>>>>>> origin/main
+    Retro (reverse) thrust is weaker than forward thrust."""
     if player.fuel <= 0:
         return
 
 <<<<<<< Updated upstream
     rad = math.radians(player.angle)
+<<<<<<< Updated upstream
 <<<<<<< HEAD
     direction = -1 if reverse else 1
     accel = player.acceleration * direction * boost_multiplier
@@ -39,10 +35,20 @@ def apply_thrust(player, dt, reverse=False):
         accel = player.acceleration
 <<<<<<< Updated upstream
 >>>>>>> origin/main
+=======
+    
+    if reverse:
+        accel = -player.acceleration * cfg.RETRO_THRUST_MULT * boost_multiplier
+        fuel_mult = cfg.RETRO_THRUST_MULT
+    else:
+        accel = player.acceleration * boost_multiplier
+        fuel_mult = 1.0
+>>>>>>> Stashed changes
 
     player.vx += math.cos(rad) * accel * dt
     player.vy += math.sin(rad) * accel * dt
 
+<<<<<<< Updated upstream
 <<<<<<< HEAD
     # Fuel consumption (zvyšuje se při boostu)
     fuel_use = cfg.FUEL_CONSUMPTION * dt * boost_multiplier
@@ -58,25 +64,23 @@ def apply_thrust(player, dt, reverse=False):
 >>>>>>> Stashed changes
     fuel_use = cfg.FUEL_CONSUMPTION * fuel_mult * dt
 >>>>>>> origin/main
+=======
+    # Fuel consumption
+    fuel_use = cfg.FUEL_CONSUMPTION * fuel_mult * dt * boost_multiplier
+>>>>>>> Stashed changes
     player.fuel = max(0, player.fuel - fuel_use)
 
     player.thrusting = True
 
 
-<<<<<<< HEAD
 def apply_drag(player, speed_limit_multiplier=1.0):
-    """No drag in space — velocity is preserved. Only cap max speed."""
+    """No drag in space — velocity is preserved indefinitely. Cap max speed."""
     speed = math.hypot(player.vx, player.vy)
     max_s = cfg.MAX_SPEED * speed_limit_multiplier
     if speed > max_s:
         scale = max_s / speed
         player.vx *= scale
         player.vy *= scale
-=======
-def apply_drag(player):
-    """No drag in space — velocity is preserved indefinitely. Newtonian."""
-    pass
->>>>>>> origin/main
 
 
 def rotate_player(player, direction, dt):

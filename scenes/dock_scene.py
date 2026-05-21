@@ -311,16 +311,9 @@ class DockScene:
         else:
             self.ship_vx = 0.0
 
-<<<<<<< HEAD
         if self.ship_vx != 0 or self.ship_vy != 0:
             self.angle = math.degrees(math.atan2(self.ship_vy, self.ship_vx))
 
-        # Fly-away abort: if ship goes far left, return to space
-        if self.ship_x < -30:
-            return "abort"
-
-=======
->>>>>>> origin/main
         # Apply velocity
         self.ship_x += self.ship_vx * dt
         self.ship_y += self.ship_vy * dt
