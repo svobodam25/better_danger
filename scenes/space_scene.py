@@ -148,9 +148,13 @@ class SpaceScene:
     def update(self, dt, keys):
         """Update space scene logic."""
         if self.map_screen.visible:
-            return None
+            # Map screen active, but do not pause the ship logic.
+            pass
 
         self.elapsed_time += dt
+
+        if getattr(self.player, 'dock_cooldown', 0) > 0:
+            self.player.dock_cooldown -= dt
 
         # Update warp cooldown
         if self.player.warp_cooldown > 0:
@@ -185,9 +189,10 @@ class SpaceScene:
         # Check for planet proximity (docking trigger)
         for key, planet in self.generated_planets.items():
             if check_planet_collision(self.player, planet):
-                self.target_planet = planet
-                self.player.know_planet(planet)
-                return "dock"
+                if getattr(self.player, 'dock_cooldown', 0) <= 0:
+                    self.target_planet = planet
+                    self.player.know_planet(planet)
+                    return "dock"
 
         # Update message
         if self.message:

@@ -50,10 +50,10 @@ WARP_MIN_DIST = 80_000.0
 WARP_MAX_DIST = 200_000.0
 
 # Universe — procedural generation, Elite-style vast distances
-PLANET_SPACING = 40_000       # px grid step (sparse density makes real distance much larger)
+PLANET_SPACING = 120_000       # px grid step (sparse density makes real distance much larger)
 PLANET_DENSITY = 0.25         # fraction of grid cells that hold a planet
 PLANET_CLUSTER_SIZE = 5       # planets per cluster
-GENERATION_RADIUS = 160_000   # generate planets within this radius of player
+GENERATION_RADIUS = 480_000   # generate planets within this radius of player
 
 # Planet types & their price modifiers
 PLANET_TYPES = ["mining", "desert", "tech", "agricultural", "industrial"]

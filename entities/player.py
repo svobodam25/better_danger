@@ -12,6 +12,7 @@ class Player:
         self.vx = 0.0
         self.vy = 0.0
         self.angle = 0.0          # degrees, 0 = right, 90 = down
+        self.dock_cooldown = 0.0  # Cooldown before we can dock again
 
         # Ship stats
         self.fuel = cfg.START_FUEL
