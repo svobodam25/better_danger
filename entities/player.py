@@ -32,7 +32,7 @@ class Player:
 
         # Upgrades
         self.upgrades = set()
-        self.has_retro = False
+        self.has_retro = True
         self.has_hyperdrive = False
 
         # Docking

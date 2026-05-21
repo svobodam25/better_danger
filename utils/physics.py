@@ -13,15 +13,31 @@ def apply_thrust(player, dt, reverse=False):
     if player.fuel <= 0:
         return
 
+<<<<<<< Updated upstream
     rad = math.radians(player.angle)
 <<<<<<< HEAD
     direction = -1 if reverse else 1
     accel = player.acceleration * direction * boost_multiplier
 =======
+=======
+>>>>>>> Stashed changes
     if reverse:
-        accel = -player.acceleration * cfg.RETRO_THRUST_MULT
+        accel = player.acceleration * cfg.RETRO_THRUST_MULT
+        speed = math.hypot(player.vx, player.vy)
+        if speed > 0:
+            rad = math.atan2(player.vy, player.vx)
+            dv = accel * dt
+            if dv > speed:
+                player.vx = 0.0
+                player.vy = 0.0
+            else:
+                player.vx -= math.cos(rad) * dv
+                player.vy -= math.sin(rad) * dv
+        fuel_mult = cfg.RETRO_THRUST_MULT
     else:
+        rad = math.radians(player.angle)
         accel = player.acceleration
+<<<<<<< Updated upstream
 >>>>>>> origin/main
 
     player.vx += math.cos(rad) * accel * dt
@@ -33,6 +49,13 @@ def apply_thrust(player, dt, reverse=False):
 =======
     # Fuel consumption (retro uses less since it's weaker)
     fuel_mult = cfg.RETRO_THRUST_MULT if reverse else 1.0
+=======
+        player.vx += math.cos(rad) * accel * dt
+        player.vy += math.sin(rad) * accel * dt
+        fuel_mult = 1.0
+
+    # Fuel consumption
+>>>>>>> Stashed changes
     fuel_use = cfg.FUEL_CONSUMPTION * fuel_mult * dt
 >>>>>>> origin/main
     player.fuel = max(0, player.fuel - fuel_use)
