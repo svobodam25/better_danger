@@ -66,7 +66,7 @@ class HUD:
 
         # Bottom-right: controls hint
         hints = [
-            "W:Thrust  A/D:Rotate  S:Brake  M:Map  Tab:Inventory  Esc:Menu",
+            "WASD:Fly  M:Map  Tab:Cycle waypoint  Bksp:Clear  Esc:Pause",
         ]
         if player.has_hyperdrive:
             hints[0] += "  J:WARP"

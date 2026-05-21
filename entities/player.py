@@ -47,6 +47,9 @@ class Player:
         self.warp_target_x = 0.0
         self.warp_target_y = 0.0
 
+        # Waypoint (target marker set from map)
+        self.waypoint = None  # (x, y) world position or None
+
     def cargo_used(self):
         total = 0
         for item in self.inventory.values():
