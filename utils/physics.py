@@ -2,81 +2,51 @@ import math
 import settings as cfg
 
 
-<<<<<<< HEAD
 def apply_thrust(player, dt, reverse=False, boost_multiplier=1.0):
-    """Apply newtonian thrust in the direction the ship is facing."""
-=======
-def apply_thrust(player, dt, reverse=False):
-    """Apply newtonian thrust in the direction the ship is facing.
-    Retro (reverse) thrust is weaker than forward thrust — stopping is harder."""
->>>>>>> origin/main
+    """Apply newtonian thrust.
+    Forward thrust pushes in the direction the ship is facing.
+    Retro (reverse) thrust pushes opposite to current velocity at RETRO_THRUST_MULT power
+    — actual braking, harder than accelerating. Boost (Shift) scales thrust and fuel."""
     if player.fuel <= 0:
         return
 
-<<<<<<< Updated upstream
-    rad = math.radians(player.angle)
-<<<<<<< HEAD
-    direction = -1 if reverse else 1
-    accel = player.acceleration * direction * boost_multiplier
-=======
-=======
->>>>>>> Stashed changes
     if reverse:
-        accel = player.acceleration * cfg.RETRO_THRUST_MULT
+        # Retro brake — push against velocity vector at reduced power
+        accel = player.acceleration * cfg.RETRO_THRUST_MULT * boost_multiplier
         speed = math.hypot(player.vx, player.vy)
         if speed > 0:
-            rad = math.atan2(player.vy, player.vx)
+            vel_angle = math.atan2(player.vy, player.vx)
             dv = accel * dt
-            if dv > speed:
+            if dv >= speed:
+                # Don't overshoot zero
                 player.vx = 0.0
                 player.vy = 0.0
             else:
-                player.vx -= math.cos(rad) * dv
-                player.vy -= math.sin(rad) * dv
-        fuel_mult = cfg.RETRO_THRUST_MULT
+                player.vx -= math.cos(vel_angle) * dv
+                player.vy -= math.sin(vel_angle) * dv
+        fuel_mult = cfg.RETRO_THRUST_MULT * boost_multiplier
     else:
         rad = math.radians(player.angle)
-        accel = player.acceleration
-<<<<<<< Updated upstream
->>>>>>> origin/main
-
-    player.vx += math.cos(rad) * accel * dt
-    player.vy += math.sin(rad) * accel * dt
-
-<<<<<<< HEAD
-    # Fuel consumption (zvyšuje se při boostu)
-    fuel_use = cfg.FUEL_CONSUMPTION * dt * boost_multiplier
-=======
-    # Fuel consumption (retro uses less since it's weaker)
-    fuel_mult = cfg.RETRO_THRUST_MULT if reverse else 1.0
-=======
+        accel = player.acceleration * boost_multiplier
         player.vx += math.cos(rad) * accel * dt
         player.vy += math.sin(rad) * accel * dt
-        fuel_mult = 1.0
+        fuel_mult = boost_multiplier
 
-    # Fuel consumption
->>>>>>> Stashed changes
     fuel_use = cfg.FUEL_CONSUMPTION * fuel_mult * dt
->>>>>>> origin/main
     player.fuel = max(0, player.fuel - fuel_use)
 
     player.thrusting = True
 
 
-<<<<<<< HEAD
 def apply_drag(player, speed_limit_multiplier=1.0):
-    """No drag in space — velocity is preserved. Only cap max speed."""
+    """No drag in space — newtonian. MAX_SPEED is effectively uncapped (1M),
+    so this is a no-op in practice but supports a future hard cap if desired."""
     speed = math.hypot(player.vx, player.vy)
     max_s = cfg.MAX_SPEED * speed_limit_multiplier
     if speed > max_s:
         scale = max_s / speed
         player.vx *= scale
         player.vy *= scale
-=======
-def apply_drag(player):
-    """No drag in space — velocity is preserved indefinitely. Newtonian."""
-    pass
->>>>>>> origin/main
 
 
 def rotate_player(player, direction, dt):
