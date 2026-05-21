@@ -1,4 +1,5 @@
 import math
+import os
 import random
 import pygame
 import settings as cfg
@@ -39,6 +40,17 @@ class SpaceScene:
         self.elapsed_time = 0.0
         self.next_scene = None
         self.target_planet = None
+
+        # Load player sprite
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        img_path = os.path.join(base_dir, "obrazky elite", "pixil-frame-0 (20).png")
+        try:
+            self.ship_img = pygame.image.load(img_path).convert_alpha()
+            # Změna velikosti lodě pokud by byla moc velká
+            # self.ship_img = pygame.transform.scale(self.ship_img, (32, 32))
+        except (pygame.error, FileNotFoundError) as e:
+            print(f"Nepodařilo se načíst obrázek: {e}")
+            self.ship_img = None
 
     def _generate_stars(self):
         """Generate 3 layers of background stars for parallax."""
@@ -144,6 +156,10 @@ class SpaceScene:
         if self.player.warp_cooldown > 0:
             self.player.warp_cooldown = max(0, self.player.warp_cooldown - dt)
 
+        # Boost multiplier
+        is_boosting = keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
+        boost_mult = 1.5 if is_boosting else 1.0
+
         # Rotation
         if keys[pygame.K_a]:
             rotate_player(self.player, -1, dt)
@@ -152,12 +168,12 @@ class SpaceScene:
 
         # Thrust
         if keys[pygame.K_w]:
-            apply_thrust(self.player, dt)
+            apply_thrust(self.player, dt, boost_multiplier=boost_mult)
         elif keys[pygame.K_s] and self.player.has_retro:
-            apply_thrust(self.player, dt, reverse=True)
+            apply_thrust(self.player, dt, reverse=True, boost_multiplier=boost_mult)
 
         # Apply drag (speed cap only, no friction)
-        apply_drag(self.player)
+        apply_drag(self.player, speed_limit_multiplier=boost_mult)
 
         # Update position
         update_position(self.player, dt)
@@ -223,17 +239,28 @@ class SpaceScene:
                 color = cfg.WHITE
                 pygame.draw.circle(screen, color, (int(sx), int(sy)), size)
 
-        # Draw player ship (triangle)
+        # Draw player ship
         px = cfg.SCREEN_WIDTH // 2
         py = cfg.SCREEN_HEIGHT // 2
-        rad = math.radians(self.player.angle)
-        size = 14
-        tip = (px + math.cos(rad) * size, py + math.sin(rad) * size)
-        left = (px + math.cos(rad + 2.4) * size * 0.6,
-                py + math.sin(rad + 2.4) * size * 0.6)
-        right = (px + math.cos(rad - 2.4) * size * 0.6,
-                 py + math.sin(rad - 2.4) * size * 0.6)
-        pygame.draw.polygon(screen, cfg.WHITE, [tip, left, right], 0)
+        
+        if self.ship_img:
+            # Rotate image counter-clockwise (since player angle is clockwise).
+            # Subtract 90 degrees if the original image points UP, 
+            # or just -self.player.angle if it points RIGHT. 
+            # Most pixel art points UP, so doing: -self.player.angle - 90
+            rotated_img = pygame.transform.rotate(self.ship_img, -self.player.angle - 90)
+            rect = rotated_img.get_rect(center=(px, py))
+            screen.blit(rotated_img, rect.topleft)
+        else:
+            # Fallback (triangle)
+            rad = math.radians(self.player.angle)
+            size = 14
+            tip = (px + math.cos(rad) * size, py + math.sin(rad) * size)
+            left = (px + math.cos(rad + 2.4) * size * 0.6,
+                    py + math.sin(rad + 2.4) * size * 0.6)
+            right = (px + math.cos(rad - 2.4) * size * 0.6,
+                     py + math.sin(rad - 2.4) * size * 0.6)
+            pygame.draw.polygon(screen, cfg.WHITE, [tip, left, right], 0)
 
         # Arrows for the 3 nearest known planets — current waypoint drawn larger/filled.
         # When a planet is on-screen we skip the arrow (the planet itself is the marker);

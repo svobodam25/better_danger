@@ -81,7 +81,6 @@ PRICE_MODIFIERS = {
 
 # Upgrades
 UPGRADES = {
-    "retro_thrusters": {"name": "Retro Thrusters", "cost": 400, "desc": "Brake with S key"},
     "cargo_upgrade":   {"name": "Cargo Expansion", "cost": 500, "desc": "+10 cargo space"},
     "engine_upgrade":  {"name": "Engine Upgrade",  "cost": 800, "desc": "+50 acceleration"},
     "hyperdrive":      {"name": "Hyperdrive",      "cost": 5000, "desc": "Warp jump with J key"},
