@@ -113,10 +113,24 @@ PRICE_MODIFIERS = {
     "industrial":    {"iron": 0.6, "water": 1.0, "electronics": 0.9, "fuel_cell": 0.6, "meds": 1.1, "food": 0.8, "machinery": 0.4},
 }
 
+# Upgrade prerequisites — a Mk2 cannot be bought without owning Mk1, etc.
+UPGRADE_PREREQUISITES = {
+    "cargo_upgrade_2":  "cargo_upgrade",
+    "cargo_upgrade_3":  "cargo_upgrade_2",
+    "cargo_upgrade_4":  "cargo_upgrade_3",
+    "cargo_upgrade_5":  "cargo_upgrade_4",
+    "engine_upgrade_2": "engine_upgrade",
+    "armor_2":          "armor",
+    "fuel_tank_2":      "fuel_tank",
+}
+
 # Upgrades — tiered progression so the player has long-term goals
 UPGRADES = {
-    "cargo_upgrade":     {"name": "Cargo Expansion",    "cost": 500,  "desc": "+10 cargo space"},
-    "cargo_upgrade_2":   {"name": "Cargo Hold Mk2",     "cost": 2000, "desc": "+10 more cargo"},
+    "cargo_upgrade":     {"name": "Cargo Expansion",    "cost": 500,   "desc": "+10 cargo space"},
+    "cargo_upgrade_2":   {"name": "Cargo Hold Mk2",     "cost": 2000,  "desc": "+10 more cargo"},
+    "cargo_upgrade_3":   {"name": "Cargo Hold Mk3",     "cost": 5000,  "desc": "+10 more cargo"},
+    "cargo_upgrade_4":   {"name": "Heavy Freighter",    "cost": 12000, "desc": "+15 more cargo"},
+    "cargo_upgrade_5":   {"name": "Bulk Carrier",       "cost": 28000, "desc": "+25 more cargo"},
     "engine_upgrade":    {"name": "Engine Upgrade",     "cost": 800,  "desc": "+50 acceleration"},
     "engine_upgrade_2":  {"name": "Engine Mk2",         "cost": 2500, "desc": "+100 acceleration"},
     "armor":             {"name": "Armor Plating",      "cost": 600,  "desc": "+50 max HP"},

@@ -42,10 +42,24 @@ class Planet:
             self.prices[comm_id] = {"buy": buy_price, "sell": sell_price}
             self.stock[comm_id] = rng.randint(100, 999)
 
-        # Available upgrades (2-3 random)
+        # Available upgrades — weighted by inverse cost so cheap basics are common,
+        # expensive endgame gear is rare. Picks 2-4 unique upgrades.
         all_upgrades = list(cfg.UPGRADES.keys())
-        rng.shuffle(all_upgrades)
-        self.upgrades_available = all_upgrades[:rng.randint(2, 3)]
+        weights = [1000.0 / cfg.UPGRADES[u]["cost"] for u in all_upgrades]
+        n = rng.randint(2, 4)
+        chosen = []
+        pool = list(zip(all_upgrades, weights))
+        while pool and len(chosen) < n:
+            total = sum(w for _, w in pool)
+            r = rng.random() * total
+            cum = 0
+            for i, (u, w) in enumerate(pool):
+                cum += w
+                if r <= cum:
+                    chosen.append(u)
+                    pool.pop(i)
+                    break
+        self.upgrades_available = chosen
 
         # Maps for sale
         self.maps_for_sale = ["map_basic"]

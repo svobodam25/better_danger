@@ -194,6 +194,11 @@ class TradeScene:
         if upgrade_id in self.player.upgrades:
             self.message = MessageBox("Already installed!", self.font_medium)
             return
+        prereq = cfg.UPGRADE_PREREQUISITES.get(upgrade_id)
+        if prereq and prereq not in self.player.upgrades:
+            req_name = cfg.UPGRADES[prereq]["name"]
+            self.message = MessageBox(f"Locked — install {req_name} first", self.font_medium)
+            return
         cost = cfg.UPGRADES[upgrade_id]["cost"]
         if self.player.credits < cost:
             self.message = MessageBox("Not enough credits!", self.font_medium)
@@ -276,7 +281,13 @@ class TradeScene:
                     self._draw_item_row(screen, y, text, is_selected, color)
                 elif self.current_section == 3:  # UPGRADES
                     installed = item_id in self.player.upgrades
-                    status = "[INSTALLED]" if installed else ""
+                    prereq = cfg.UPGRADE_PREREQUISITES.get(item_id)
+                    if installed:
+                        status = "[INSTALLED]"
+                    elif prereq and prereq not in self.player.upgrades:
+                        status = f"[LOCKED — needs {cfg.UPGRADES[prereq]['name']}]"
+                    else:
+                        status = ""
                     text = f"{item_data['name']:<20} Cost: {item_data['cost']:>5} cr  {item_data['desc']} {status}"
                     self._draw_item_row(screen, y, text, is_selected, color)
                 elif self.current_section == 4:  # REFUEL

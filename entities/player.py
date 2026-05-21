@@ -129,9 +129,15 @@ class Player:
         if upgrade_id == "retro_thrusters":
             self.has_retro = True
         elif upgrade_id == "cargo_upgrade":
-            self.max_cargo = cfg.MAX_CARGO_UPGRADED
+            self.max_cargo += 10
         elif upgrade_id == "cargo_upgrade_2":
             self.max_cargo += 10
+        elif upgrade_id == "cargo_upgrade_3":
+            self.max_cargo += 10
+        elif upgrade_id == "cargo_upgrade_4":
+            self.max_cargo += 15
+        elif upgrade_id == "cargo_upgrade_5":
+            self.max_cargo += 25
         elif upgrade_id == "engine_upgrade":
             self.acceleration = cfg.BASE_ACCELERATION + 50
         elif upgrade_id == "engine_upgrade_2":
