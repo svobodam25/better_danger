@@ -292,16 +292,16 @@ class DockScene:
         else:
             self.ship_vx = 0.0
 
-        # Fly-away abort: if ship goes far left, return to space
-        if self.ship_x < -30:
-            return "abort"
-
         # Apply velocity
         self.ship_x += self.ship_vx * dt
         self.ship_y += self.ship_vy * dt
 
-        # Clamp to screen bounds
-        self.ship_x = max(self.ship_w // 2, min(cfg.SCREEN_WIDTH - self.ship_w // 2, self.ship_x))
+        # Fly-away abort: if ship goes far left, return to space
+        if self.ship_x < -30:
+            return "abort"
+
+        # Clamp right edge to screen; left side is open so the player can fly out to abort
+        self.ship_x = min(cfg.SCREEN_WIDTH - self.ship_w // 2, self.ship_x)
 
         # Gate collision — HARD WALL, cannot pass through solid gate
         if not self.passed_gate:
@@ -338,15 +338,17 @@ class DockScene:
         was_clamped = self.clamped
         self.clamped = False
         for slot in self.slots:
+            if slot["occupied"]:
+                continue
             slot_rect = pygame.Rect(slot["x"], slot["y"], slot["w"], slot["h"])
             if ship_rect.colliderect(slot_rect):
                 self.clamped = True
                 self.clamped_at_ceiling = slot.get("ceiling", False)
-                # Snap to slot
+                # Snap flush to slot (no gap)
                 if self.clamped_at_ceiling:
-                    self.ship_y = slot["y"] + slot["h"] + self.ship_h // 2 + 1
+                    self.ship_y = slot["y"] + slot["h"] + self.ship_h // 2
                 else:
-                    self.ship_y = slot["y"] - self.ship_h // 2 - 1
+                    self.ship_y = slot["y"] - self.ship_h // 2
                 self.ship_vy = 0
                 break
 
@@ -369,6 +371,13 @@ class DockScene:
         if self.passed_gate:
             # Check if parked in target slot — 1.5s docking sequence
             if self._check_parked_in_slot(self.target_slot_idx):
+                # Snap ship to exact slot position — flush against the platform
+                target = self.slots[self.target_slot_idx]
+                self.ship_x = target["x"] + target["w"] // 2
+                if target.get("ceiling", False):
+                    self.ship_y = target["y"] + target["h"] + self.ship_h // 2
+                else:
+                    self.ship_y = target["y"] - self.ship_h // 2
                 self.ship_vx = 0
                 self.ship_vy = 0
                 self.docking_timer += dt
@@ -631,11 +640,7 @@ class DockScene:
         # Wrong slot warning
         if self.wrong_slot_timer > 0 and self.passed_gate:
             remaining = max(0, 5.0 - self.wrong_slot_timer)
-            if remaining < 2:
-                warn_color = color
-            else:
-                warn_color = color
-            warn = self.font_medium.render(f"WRONG SLOT! MOVE! {remaining:.1f}s", True, warn_color)
+            warn = self.font_medium.render(f"WRONG SLOT! MOVE! {remaining:.1f}s", True, color)
             screen.blit(warn, (cfg.SCREEN_WIDTH // 2 - warn.get_width() // 2,
                                cfg.SCREEN_HEIGHT // 2 - 100))
 

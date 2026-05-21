@@ -3,31 +3,31 @@ import settings as cfg
 
 
 def apply_thrust(player, dt, reverse=False):
-    """Apply newtonian thrust in the direction the ship is facing."""
+    """Apply newtonian thrust in the direction the ship is facing.
+    Retro (reverse) thrust is weaker than forward thrust — stopping is harder."""
     if player.fuel <= 0:
         return
 
     rad = math.radians(player.angle)
-    direction = -1 if reverse else 1
-    accel = player.acceleration * direction
+    if reverse:
+        accel = -player.acceleration * cfg.RETRO_THRUST_MULT
+    else:
+        accel = player.acceleration
 
     player.vx += math.cos(rad) * accel * dt
     player.vy += math.sin(rad) * accel * dt
 
-    # Fuel consumption
-    fuel_use = cfg.FUEL_CONSUMPTION * dt
+    # Fuel consumption (retro uses less since it's weaker)
+    fuel_mult = cfg.RETRO_THRUST_MULT if reverse else 1.0
+    fuel_use = cfg.FUEL_CONSUMPTION * fuel_mult * dt
     player.fuel = max(0, player.fuel - fuel_use)
 
     player.thrusting = True
 
 
 def apply_drag(player):
-    """No drag in space — velocity is preserved. Only cap max speed."""
-    speed = math.hypot(player.vx, player.vy)
-    if speed > cfg.MAX_SPEED:
-        scale = cfg.MAX_SPEED / speed
-        player.vx *= scale
-        player.vy *= scale
+    """No drag in space — velocity is preserved indefinitely. Newtonian."""
+    pass
 
 
 def rotate_player(player, direction, dt):

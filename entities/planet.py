@@ -19,7 +19,7 @@ class Planet:
         import random
         rng = random.Random(self.pid)
         self.planet_type = rng.choice(cfg.PLANET_TYPES)
-        self.radius = rng.uniform(12, 28)
+        self.radius = rng.uniform(80, 200)
 
         # Generate prices based on type
         self.prices = {}
