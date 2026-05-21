@@ -29,7 +29,7 @@ class Planet:
             mod = modifiers.get(comm_id, 1.0)
             base = comm["base_price"]
             buy_price = max(2, int(base * mod * rng.uniform(0.9, 1.1)))
-            sell_price = max(1, int(buy_price * 0.85))
+            sell_price = max(1, int(buy_price * 0.90))
             self.prices[comm_id] = {"buy": buy_price, "sell": sell_price}
             self.stock[comm_id] = rng.randint(100, 999)
 

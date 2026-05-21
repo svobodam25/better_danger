@@ -24,6 +24,7 @@ class Player:
 
         # Economy
         self.credits = cfg.START_CREDITS
+        self.total_earned = 0      # cumulative credits ever gained (drives rank)
         self.inventory = {}        # {commodity_id: {"qty": N, "buy_price": P}}
 
         # Knowledge
@@ -47,8 +48,15 @@ class Player:
         self.warp_target_x = 0.0
         self.warp_target_y = 0.0
 
+        # Tech flags
+        self.has_long_scanner = False
+        self.has_mining_drill = False
+
         # Waypoint (target marker set from map)
         self.waypoint = None  # (x, y) world position or None
+
+        # Mined asteroid IDs (so they don't respawn on regeneration)
+        self.mined_asteroids = set()
 
     def cargo_used(self):
         total = 0
@@ -93,11 +101,21 @@ class Player:
     def sell(self, commodity_id, amount, price_per_unit):
         if not self.can_sell(commodity_id, amount):
             return False
-        self.credits += amount * price_per_unit
+        revenue = amount * price_per_unit
+        self.credits += revenue
+        self.total_earned += revenue
         self.inventory[commodity_id]["qty"] -= amount
         if self.inventory[commodity_id]["qty"] <= 0:
             del self.inventory[commodity_id]
         return True
+
+    def rank(self):
+        """Return current rank name based on total_earned."""
+        name = "Spacer"
+        for threshold, rname in cfg.RANKS:
+            if self.total_earned >= threshold:
+                name = rname
+        return name
 
     def apply_upgrade(self, upgrade_id):
         if upgrade_id in self.upgrades:
@@ -111,16 +129,30 @@ class Player:
             self.has_retro = True
         elif upgrade_id == "cargo_upgrade":
             self.max_cargo = cfg.MAX_CARGO_UPGRADED
+        elif upgrade_id == "cargo_upgrade_2":
+            self.max_cargo += 10
         elif upgrade_id == "engine_upgrade":
             self.acceleration = cfg.BASE_ACCELERATION + 50
+        elif upgrade_id == "engine_upgrade_2":
+            self.acceleration += 100
         elif upgrade_id == "hyperdrive":
             self.has_hyperdrive = True
         elif upgrade_id == "armor":
             self.max_hp = cfg.MAX_HP + 50
             self.hp = min(self.hp + 50, self.max_hp)
+        elif upgrade_id == "armor_2":
+            self.max_hp += 50
+            self.hp = min(self.hp + 50, self.max_hp)
         elif upgrade_id == "fuel_tank":
             self.max_fuel = cfg.MAX_FUEL + 50
             self.fuel = min(self.fuel + 50, self.max_fuel)
+        elif upgrade_id == "fuel_tank_2":
+            self.max_fuel += 100
+            self.fuel = min(self.fuel + 100, self.max_fuel)
+        elif upgrade_id == "scanner_range":
+            self.has_long_scanner = True
+        elif upgrade_id == "mining_drill":
+            self.has_mining_drill = True
         return True
 
     def has_upgrade(self, upgrade_id):

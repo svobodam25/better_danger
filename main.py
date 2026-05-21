@@ -12,6 +12,7 @@ from entities.planet import Planet
 from scenes.space_scene import SpaceScene
 from scenes.dock_scene import DockScene
 from scenes.trade_scene import TradeScene
+from scenes.mine_scene import MineScene
 from utils.helpers import snap_to_grid
 
 
@@ -49,6 +50,7 @@ class Game:
         self.space_scene = SpaceScene(self.player, self.font_small, self.font_medium, self.font_large)
         self.dock_scene = None
         self.trade_scene = None
+        self.mine_scene = None
 
         # Reveal queue (maps bought)
         self.pending_reveals = 0
@@ -79,6 +81,10 @@ class Game:
                     result = self.dock_scene.handle_input(event)
                 elif self.scene == "trade" and self.trade_scene:
                     result = self.trade_scene.handle_input(event)
+                elif self.scene == "mine" and self.mine_scene:
+                    result = self.mine_scene.handle_input(event)
+                    if result == "leave":
+                        self.scene = "space"
 
                 if result == "pause":
                     self.paused = not self.paused
@@ -104,6 +110,13 @@ class Game:
                         self.dock_scene = DockScene(
                             self.player, self.font_small, self.font_medium, self.font_large)
                         self.scene = "dock"
+                elif result == "mine":
+                    ast = self.space_scene.target_asteroid
+                    if ast:
+                        self.mine_scene = MineScene(
+                            self.player, ast,
+                            self.font_small, self.font_medium, self.font_large, self.font_huge)
+                        self.scene = "mine"
                 self.space_scene.draw(self.screen)
 
                 # Handle pending map reveals
@@ -128,6 +141,12 @@ class Game:
                     # Go back to space (abort docking)
                     self._abort_dock()
                 self.dock_scene.draw(self.screen)
+
+            elif self.scene == "mine":
+                result = self.mine_scene.update(dt, keys)
+                if result == "leave":
+                    self.scene = "space"
+                self.mine_scene.draw(self.screen)
 
             elif self.scene == "trade":
                 result = self.trade_scene.update(dt)

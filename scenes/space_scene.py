@@ -5,6 +5,7 @@ import pygame
 import settings as cfg
 from entities.planet import Planet
 from entities.player import Player
+from entities.asteroid import Asteroid
 from ui.hud import HUD
 from ui.map_screen import MapScreen
 from ui.menu import MessageBox
@@ -28,7 +29,8 @@ class SpaceScene:
         self.message = None
 
         # Procedural planet cache
-        self.generated_planets = {}  # planet_id -> Planet
+        self.generated_planets = {}  # (gx, gy) -> Planet
+        self.generated_asteroids = {}  # (gx, gy) -> Asteroid
 
         # Background stars (parallax layers)
         self.stars = self._generate_stars()
@@ -40,6 +42,8 @@ class SpaceScene:
         self.elapsed_time = 0.0
         self.next_scene = None
         self.target_planet = None
+        self.target_asteroid = None    # set by F key when an asteroid is in engage range
+        self._pending_mine = False
 
         # Load player sprite
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -97,6 +101,40 @@ class SpaceScene:
                 if key not in self.generated_planets and self._planet_exists_at(gx, gy):
                     self.generated_planets[key] = Planet(gx, gy)
 
+    def _asteroid_exists_at(self, gx, gy):
+        """Deterministic check whether an asteroid exists at this grid point."""
+        rng = random.Random(f"ast-exists:{gx}:{gy}")
+        return rng.random() < cfg.ASTEROID_DENSITY
+
+    def _generate_nearby_asteroids(self):
+        """Generate undiscovered asteroids near the player on a denser grid than planets."""
+        radius = cfg.ASTEROID_GENERATION_RADIUS
+        step = cfg.ASTEROID_SPACING
+        cx = snap_to_grid(self.player.x, step)
+        cy = snap_to_grid(self.player.y, step)
+        for dx in range(-radius, radius + step, step):
+            for dy in range(-radius, radius + step, step):
+                gx = int(cx + dx)
+                gy = int(cy + dy)
+                key = (gx, gy)
+                if key not in self.generated_asteroids and self._asteroid_exists_at(gx, gy):
+                    self.generated_asteroids[key] = Asteroid(gx, gy)
+
+    def _nearest_mineable_asteroid(self):
+        """Find the closest unmined asteroid within engage range (for the F key)."""
+        best = None
+        best_dist = float("inf")
+        for ast in self.generated_asteroids.values():
+            if ast.aid in self.player.mined_asteroids:
+                continue
+            d = math.hypot(self.player.x - ast.x, self.player.y - ast.y)
+            if d > ast.radius + cfg.MINE_ENGAGE_RANGE:
+                continue
+            if d < best_dist:
+                best_dist = d
+                best = ast
+        return best
+
     def handle_input(self, event):
         """Handle keyboard/mouse events for space scene."""
         # Map screen takes priority
@@ -116,6 +154,13 @@ class SpaceScene:
                     if warp_jump(self.player, tx, ty):
                         self.player.warp_cooldown = cfg.WARP_COOLDOWN
                         self.message = MessageBox("WARP JUMP!", self.font_large, -40)
+            elif event.key == pygame.K_f:
+                ast = self._nearest_mineable_asteroid()
+                if ast:
+                    self.target_asteroid = ast
+                    self._pending_mine = True
+                else:
+                    self.message = MessageBox("No asteroid in range", self.font_small, -100)
             elif event.key == pygame.K_TAB:
                 self._cycle_waypoint()
             elif event.key == pygame.K_BACKSPACE:
@@ -179,8 +224,14 @@ class SpaceScene:
         update_position(self.player, dt)
         update_trail(self.player)
 
-        # Generate nearby planets
+        # Generate nearby planets and asteroids
         self._generate_nearby_planets()
+        self._generate_nearby_asteroids()
+
+        # If the player pressed F over an asteroid, trigger the mining minigame
+        if self._pending_mine and self.target_asteroid:
+            self._pending_mine = False
+            return "mine"
 
         # Check for planet proximity (docking trigger)
         for key, planet in self.generated_planets.items():
@@ -215,6 +266,17 @@ class SpaceScene:
                     sy -= cfg.SCREEN_HEIGHT * 2
                 if 0 <= sx <= cfg.SCREEN_WIDTH and 0 <= sy <= cfg.SCREEN_HEIGHT:
                     pygame.draw.circle(screen, cfg.WHITE, (int(sx), int(sy)), int(star["r"]))
+
+        # Draw asteroids as small diamond outlines (skip mined ones)
+        for key, ast in self.generated_asteroids.items():
+            if ast.aid in self.player.mined_asteroids:
+                continue
+            sx = cx + ast.x
+            sy = cy + ast.y
+            if -30 < sx < cfg.SCREEN_WIDTH + 30 and -30 < sy < cfg.SCREEN_HEIGHT + 30:
+                r = int(ast.radius)
+                pts = [(sx, sy - r), (sx + r, sy), (sx, sy + r), (sx - r, sy)]
+                pygame.draw.polygon(screen, cfg.WHITE, pts, 1)
 
         # Draw all visible planets — known are filled with name, unknown are outlines only
         for key, planet in self.generated_planets.items():
@@ -326,8 +388,18 @@ class SpaceScene:
             screen.blit(wp_text,
                         (cfg.SCREEN_WIDTH // 2 - wp_text.get_width() // 2, 70))
 
+        # "[F] MINE" hint when an asteroid is in engage range
+        nearest_ast = self._nearest_mineable_asteroid()
+        if nearest_ast:
+            hint = self.font_medium.render("[F] MINE ASTEROID", True, cfg.WHITE)
+            screen.blit(hint,
+                        (cfg.SCREEN_WIDTH // 2 - hint.get_width() // 2, 100))
+
         # Draw HUD
         self.hud.draw(screen, self.player, self.elapsed_time)
+
+        # Draw radar (bottom-right) so the player can find asteroids/planets
+        self._draw_radar(screen)
 
         # Draw map overlay
         self.map_screen.draw(screen, self.player, self.generated_planets)
@@ -335,6 +407,90 @@ class SpaceScene:
         # Draw message
         if self.message:
             self.message.draw(screen)
+
+    def _draw_radar(self, screen):
+        """Circular radar in the bottom-right corner. Shows nearby asteroids and planets
+        relative to the player, including planet name & distance for the closest one."""
+        color = cfg.WHITE
+        radar_size = 150
+        radar_radius = radar_size // 2
+        cx_r = cfg.SCREEN_WIDTH - radar_radius - 10
+        cy_r = cfg.SCREEN_HEIGHT - radar_radius - 40
+        range_world = cfg.RADAR_RANGE * (2 if self.player.has_long_scanner else 1)
+
+        # Black backdrop so radar is readable over background stars
+        pygame.draw.rect(screen, cfg.BLACK,
+                         (cx_r - radar_radius - 2, cy_r - radar_radius - 2,
+                          radar_size + 4, radar_size + 4))
+        # Outer + half-range rings, crosshair
+        pygame.draw.circle(screen, color, (cx_r, cy_r), radar_radius, 1)
+        pygame.draw.circle(screen, color, (cx_r, cy_r), radar_radius // 2, 1)
+        pygame.draw.line(screen, color,
+                         (cx_r - radar_radius, cy_r),
+                         (cx_r + radar_radius, cy_r), 1)
+        pygame.draw.line(screen, color,
+                         (cx_r, cy_r - radar_radius),
+                         (cx_r, cy_r + radar_radius), 1)
+
+        # Player at center + facing direction
+        rad = math.radians(self.player.angle)
+        pygame.draw.line(screen, color,
+                         (cx_r, cy_r),
+                         (int(cx_r + math.cos(rad) * 10),
+                          int(cy_r + math.sin(rad) * 10)), 2)
+        pygame.draw.circle(screen, color, (cx_r, cy_r), 2, 0)
+
+        # Asteroid blips (tiny diamonds)
+        for ast in self.generated_asteroids.values():
+            if ast.aid in self.player.mined_asteroids:
+                continue
+            dx = ast.x - self.player.x
+            dy = ast.y - self.player.y
+            d = math.hypot(dx, dy)
+            if d > range_world or d < 1:
+                continue
+            rx = cx_r + dx / range_world * radar_radius
+            ry = cy_r + dy / range_world * radar_radius
+            pygame.draw.polygon(screen, color, [
+                (rx, ry - 2), (rx + 2, ry), (rx, ry + 2), (rx - 2, ry)
+            ], 1)
+
+        # Planet blips — known are filled, unknown are outlined
+        for planet in self.generated_planets.values():
+            dx = planet.x - self.player.x
+            dy = planet.y - self.player.y
+            d = math.hypot(dx, dy)
+            if d > range_world:
+                continue
+            rx = cx_r + dx / range_world * radar_radius
+            ry = cy_r + dy / range_world * radar_radius
+            known = self.player.knows_planet(planet.pid)
+            pygame.draw.circle(screen, color, (int(rx), int(ry)), 4, 0 if known else 1)
+
+        # Waypoint blip — bright cross if within range, edge marker if beyond
+        if self.player.waypoint:
+            wx, wy = self.player.waypoint
+            dx = wx - self.player.x
+            dy = wy - self.player.y
+            d = math.hypot(dx, dy)
+            if d <= range_world:
+                rx = cx_r + dx / range_world * radar_radius
+                ry = cy_r + dy / range_world * radar_radius
+            else:
+                # Project to radar edge
+                ang = math.atan2(dy, dx)
+                rx = cx_r + math.cos(ang) * (radar_radius - 4)
+                ry = cy_r + math.sin(ang) * (radar_radius - 4)
+            pygame.draw.line(screen, color,
+                             (int(rx) - 5, int(ry)), (int(rx) + 5, int(ry)), 1)
+            pygame.draw.line(screen, color,
+                             (int(rx), int(ry) - 5), (int(rx), int(ry) + 5), 1)
+
+        # Range label
+        lbl = self.font_small.render(f"RADAR  {range_world // 1000}k px",
+                                     True, color)
+        screen.blit(lbl, (cx_r - lbl.get_width() // 2,
+                          cy_r + radar_radius + 2))
 
     def get_target_planet(self):
         return self.target_planet

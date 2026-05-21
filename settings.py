@@ -21,7 +21,7 @@ MAX_SPEED = 1_000_000.0      # effectively uncapped; physics never enforces it
 SPEED_DISPLAY_REF = 10_000.0 # reference speed for HUD speed bar (full bar = this speed)
 
 # Player defaults
-START_CREDITS = 500
+START_CREDITS = 1500         # buffer for early learning trips
 START_FUEL = 100.0
 MAX_FUEL = 100.0
 START_HP = 100.0
@@ -31,7 +31,7 @@ MAX_CARGO_BASE = 10
 MAX_CARGO_UPGRADED = 20
 
 # Fuel consumption per second of thrust
-FUEL_CONSUMPTION = 2.0       # units/s at full thrust
+FUEL_CONSUMPTION = 1.2       # units/s at full thrust (reduced so trips are profitable)
 
 # Docking
 DOCK_PROXIMITY = 150.0       # px distance from planet surface to trigger docking
@@ -54,6 +54,33 @@ PLANET_SPACING = 40_000       # px grid step (sparse density makes real distance
 PLANET_DENSITY = 0.25         # fraction of grid cells that hold a planet
 PLANET_CLUSTER_SIZE = 5       # planets per cluster
 GENERATION_RADIUS = 160_000   # generate planets within this radius of player
+
+# Asteroids — mineable for bonus credits / commodities between planets
+ASTEROID_SPACING = 6_000          # px grid step (denser than planets)
+ASTEROID_DENSITY = 0.18           # fraction of grid cells with an asteroid
+ASTEROID_GENERATION_RADIUS = 40_000  # generate asteroids within this radius of player
+ASTEROID_MINE_RANGE = 100         # extra px on top of asteroid radius to auto-mine
+
+# Radar (HUD) — shows nearby planets and asteroids
+RADAR_RANGE = 30_000              # world px shown by radar edge
+
+# Mining minigame — heat outpaces progress so you must release periodically
+MINE_ENGAGE_RANGE = 300           # extra px on top of asteroid radius to start minigame with F
+MINE_PROGRESS_RATE = 22.0         # % per second while drilling (4.5s straight = 100%)
+MINE_HEAT_RATE = 28.0             # % per second while drilling (3.6s straight = overheat)
+MINE_COOL_RATE = 35.0             # % per second when idle
+MINE_OVERHEAT_DAMAGE = 15.0       # HP lost on overheat
+MINE_DRILL_HEAT_REDUCTION = 0.7   # multiplier applied when Industrial Drill upgrade owned
+
+# Ranks (based on total credits ever earned)
+RANKS = [
+    (0, "Spacer"),
+    (5_000, "Trader"),
+    (25_000, "Merchant"),
+    (100_000, "Tycoon"),
+    (500_000, "Magnate"),
+    (2_000_000, "Elite"),
+]
 
 # Planet types & their price modifiers
 PLANET_TYPES = ["mining", "desert", "tech", "agricultural", "industrial"]
@@ -79,13 +106,19 @@ PRICE_MODIFIERS = {
     "industrial":    {"iron": 0.6, "water": 1.0, "electronics": 0.9, "fuel_cell": 0.6, "meds": 1.1, "food": 0.8, "machinery": 0.4},
 }
 
-# Upgrades
+# Upgrades — tiered progression so the player has long-term goals
 UPGRADES = {
-    "cargo_upgrade":   {"name": "Cargo Expansion", "cost": 500, "desc": "+10 cargo space"},
-    "engine_upgrade":  {"name": "Engine Upgrade",  "cost": 800, "desc": "+50 acceleration"},
-    "hyperdrive":      {"name": "Hyperdrive",      "cost": 5000, "desc": "Warp jump with J key"},
-    "armor":           {"name": "Armor Plating",   "cost": 600, "desc": "+50 max HP"},
-    "fuel_tank":       {"name": "Fuel Tank",       "cost": 350, "desc": "+50 max fuel"},
+    "cargo_upgrade":     {"name": "Cargo Expansion",    "cost": 500,  "desc": "+10 cargo space"},
+    "cargo_upgrade_2":   {"name": "Cargo Hold Mk2",     "cost": 2000, "desc": "+10 more cargo"},
+    "engine_upgrade":    {"name": "Engine Upgrade",     "cost": 800,  "desc": "+50 acceleration"},
+    "engine_upgrade_2":  {"name": "Engine Mk2",         "cost": 2500, "desc": "+100 acceleration"},
+    "armor":             {"name": "Armor Plating",      "cost": 600,  "desc": "+50 max HP"},
+    "armor_2":           {"name": "Heavy Armor",        "cost": 2200, "desc": "+50 more max HP"},
+    "fuel_tank":         {"name": "Fuel Tank",          "cost": 350,  "desc": "+50 max fuel"},
+    "fuel_tank_2":       {"name": "Large Fuel Tank",    "cost": 1500, "desc": "+100 more max fuel"},
+    "scanner_range":     {"name": "Long-Range Scanner", "cost": 1200, "desc": "Radar range 2x"},
+    "mining_drill":      {"name": "Industrial Drill",   "cost": 1500, "desc": "Mining heat -30%"},
+    "hyperdrive":        {"name": "Hyperdrive",         "cost": 8000, "desc": "Warp jump with J key"},
 }
 
 # Universe

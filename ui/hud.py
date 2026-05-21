@@ -16,8 +16,9 @@ class HUD:
         y = 10
         spacing = 20
 
-        # Top-left: credits, fuel, HP
+        # Top-left: rank, credits, fuel, HP
         texts = [
+            f"RANK: {player.rank()}",
             f"CREDITS: {player.credits}",
             f"FUEL: {int(player.fuel)}/{int(player.max_fuel)}",
             f"HP: {int(player.hp)}/{int(player.max_hp)}",
@@ -74,15 +75,15 @@ class HUD:
         fill_w = int(speed_ratio * spd_bar_w)
         pygame.draw.rect(screen, color, (spd_bar_x, spd_bar_y, fill_w, spd_bar_h))
 
-        # Bottom-right: controls hint
+        # Bottom-center: controls hint (right corner is reserved for radar)
         hints = [
-            "WASD:Fly  M:Map  Tab:Cycle waypoint  Bksp:Clear  Esc:Pause",
+            "WASD:Fly  Shift:Boost  M:Map  Tab:Waypoint  Esc:Pause",
         ]
         if player.has_hyperdrive:
             hints[0] += "  J:WARP"
         hint_surf = self.font_small.render(hints[0], True, color)
-        screen.blit(hint_surf, (cfg.SCREEN_WIDTH - hint_surf.get_width() - 10,
-                                cfg.SCREEN_HEIGHT - 20))
+        screen.blit(hint_surf, ((cfg.SCREEN_WIDTH - hint_surf.get_width()) // 2,
+                                cfg.SCREEN_HEIGHT - 14))
 
         # Warp cooldown indicator
         if player.warp_cooldown > 0:
