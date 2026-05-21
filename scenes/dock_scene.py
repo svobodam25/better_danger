@@ -27,6 +27,7 @@ class DockScene:
             print(f"Nepodařilo se načíst obrázek lodi do docku: {e}")
             self.ship_img = None
 
+        self.dock_time = 0.0
         self.reset()
 
     def reset(self):
@@ -318,9 +319,10 @@ class DockScene:
         # Apply velocity
         self.ship_x += self.ship_vx * dt
         self.ship_y += self.ship_vy * dt
+        self.dock_time += dt
 
-        # Fly-away abort: if ship goes far left, return to space
-        if self.ship_x < -30:
+        # Fly-away abort: if ship goes far left (and cooldown passed), return to space
+        if self.ship_x < -30 and self.dock_time > 1.0:
             return "abort"
 
         # Clamp right edge to screen; left side is open so the player can fly out to abort

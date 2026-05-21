@@ -153,6 +153,7 @@ class Game:
                 if result == "leave":
                     # Go back to space
                     self.scene = "space"
+                    self.player.dock_cooldown = 3.0
                     # Push player away from planet
                     target = self.space_scene.get_target_planet()
                     if target:
@@ -191,6 +192,7 @@ class Game:
     def _abort_dock(self):
         """Abort docking and return to space."""
         self.scene = "space"
+        self.player.dock_cooldown = 3.0
         target = self.space_scene.get_target_planet()
         if target:
             angle = math.atan2(self.player.y - target.y, self.player.x - target.x)
