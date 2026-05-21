@@ -53,7 +53,7 @@ class TradeScene:
             elif event.key == pygame.K_DOWN:
                 items = self._get_section_items()
                 self.selected_item = min(len(items) - 1, self.selected_item + 1)
-            elif event.key == pygame.K_RETURN:
+            elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 self._handle_enter()
             elif event.key == pygame.K_w:
                 self.selected_item = max(0, self.selected_item - 1)

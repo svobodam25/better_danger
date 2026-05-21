@@ -64,6 +64,13 @@ ASTEROID_MINE_RANGE = 100         # extra px on top of asteroid radius to auto-m
 # Radar (HUD) — shows nearby planets and asteroids
 RADAR_RANGE = 30_000              # world px shown by radar edge
 
+# Display scale — 1 game-px represents 10 km of physical space.
+# Used only for UI; engine still operates in raw px.
+PX_PER_KM = 0.1                                  # 1 km = 0.1 px (10 km per pixel)
+PX_PER_LS = 29_979.2458                          # 1 ls = ~29979 px
+PX_PER_AU = 14_959_787.07                        # 1 AU = ~15 M px
+PX_PER_LY = 946_073_047_258.08                   # 1 ly = ~946 G px
+
 # Mining minigame — heat outpaces progress so you must release periodically
 MINE_ENGAGE_RANGE = 300           # extra px on top of asteroid radius to start minigame with F
 MINE_PROGRESS_RATE = 22.0         # % per second while drilling (4.5s straight = 100%)

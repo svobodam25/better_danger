@@ -17,6 +17,38 @@ class MapScreen:
         self.pan_x = 0.0
         self.pan_y = 0.0
         self.selected_idx = 0  # index into sorted-by-distance known planets
+        self.unit_mode = "auto"  # cycled by U: "auto" | "px" | "km"
+
+    def _fmt_distance(self, v):
+        """Format a world-space distance/position value according to unit_mode.
+        Game scale: 1 px = 10 km."""
+        if self.unit_mode == "px":
+            return f"{int(v)} px"
+        if self.unit_mode == "km":
+            return f"{v / cfg.PX_PER_KM:,.0f} km"
+        if self.unit_mode == "ls":
+            return f"{v / cfg.PX_PER_LS:.3f} ls"
+        if self.unit_mode == "au":
+            return f"{v / cfg.PX_PER_AU:.5f} AU"
+        if self.unit_mode == "ly":
+            return f"{v / cfg.PX_PER_LY:.8f} ly"
+        # auto — pick the most readable unit for the magnitude
+        av = abs(v)
+        if av < cfg.PX_PER_LS * 0.01:        # < 0.01 ls (~3000 km)
+            return f"{v / cfg.PX_PER_KM:,.0f} km"
+        if av < cfg.PX_PER_AU * 0.01:        # < 0.01 AU (~5 ls)
+            return f"{v / cfg.PX_PER_LS:.2f} ls"
+        if av < cfg.PX_PER_LY * 0.01:        # < 0.01 ly
+            return f"{v / cfg.PX_PER_AU:.3f} AU"
+        return f"{v / cfg.PX_PER_LY:.4f} ly"
+
+    def visible_world_rect(self, player):
+        """Returns (min_x, min_y, max_x, max_y) in world coords."""
+        half_w = (cfg.SCREEN_WIDTH / 2) / self.zoom
+        half_h = (cfg.SCREEN_HEIGHT / 2) / self.zoom
+        cx = player.x + self.pan_x
+        cy = player.y + self.pan_y
+        return (cx - half_w, cy - half_h, cx + half_w, cy + half_h)
 
     def toggle(self):
         self.visible = not self.visible
@@ -36,9 +68,9 @@ class MapScreen:
             if event.key in (pygame.K_m, pygame.K_ESCAPE):
                 self.visible = False
                 return True
-            elif event.key in (pygame.K_EQUALS, pygame.K_PLUS):
+            elif event.key in (pygame.K_EQUALS, pygame.K_PLUS, pygame.K_KP_PLUS):
                 self.zoom = min(1.0, self.zoom * 1.5)
-            elif event.key == pygame.K_MINUS:
+            elif event.key in (pygame.K_MINUS, pygame.K_KP_MINUS):
                 self.zoom = max(0.00005, self.zoom / 1.5)
             elif event.key in (pygame.K_w, pygame.K_UP):
                 self.pan_y -= 100 / self.zoom
@@ -51,11 +83,15 @@ class MapScreen:
             elif event.key == pygame.K_HOME:
                 self.pan_x = 0.0
                 self.pan_y = 0.0
+            elif event.key == pygame.K_u:
+                modes = ["auto", "km", "ls", "au", "ly", "px"]
+                idx = modes.index(self.unit_mode) if self.unit_mode in modes else 0
+                self.unit_mode = modes[(idx + 1) % len(modes)]
             elif event.key == pygame.K_TAB:
                 planets = self._sorted_planets(player)
                 if planets:
                     self.selected_idx = (self.selected_idx + 1) % len(planets)
-            elif event.key == pygame.K_RETURN:
+            elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 planets = self._sorted_planets(player)
                 if planets and self.selected_idx < len(planets):
                     target = planets[self.selected_idx]
@@ -126,24 +162,28 @@ class MapScreen:
             pygame.draw.line(screen, color, (0, int(sy)), (cfg.SCREEN_WIDTH, int(sy)), 1)
             gy += grid_world_spacing
 
-        # --- Known planets ---
-        sorted_planets = self._sorted_planets(player)
-        for i, planet in enumerate(sorted_planets):
+        # --- Only KNOWN planets shown on the map — buying star charts is how you discover ---
+        sorted_known = self._sorted_planets(player)
+        selected_pid = (sorted_known[self.selected_idx].pid
+                        if sorted_known and self.selected_idx < len(sorted_known)
+                        else None)
+        for planet in sorted_known:
             sx, sy = self._world_to_screen(planet.x, planet.y, player)
-            if -50 < sx < cfg.SCREEN_WIDTH + 50 and -50 < sy < cfg.SCREEN_HEIGHT + 50:
-                r = max(3, int(planet.radius * self.zoom))
-                pygame.draw.circle(screen, color, (int(sx), int(sy)), r, 0)
-                if i == self.selected_idx:
-                    pygame.draw.circle(screen, color, (int(sx), int(sy)), r + 8, 2)
-                is_wp = (player.waypoint and
-                         abs(planet.x - player.waypoint[0]) < 1 and
-                         abs(planet.y - player.waypoint[1]) < 1)
-                if is_wp:
-                    pygame.draw.circle(screen, color, (int(sx), int(sy)), r + 14, 1)
-                    wp_lbl = self.font_small.render("[WAYPOINT]", True, color)
-                    screen.blit(wp_lbl, (sx - wp_lbl.get_width() // 2, sy + r + 20))
-                name_surf = self.font_small.render(planet.name, True, color)
-                screen.blit(name_surf, (sx - name_surf.get_width() // 2, sy + r + 4))
+            if not (-50 < sx < cfg.SCREEN_WIDTH + 50 and -50 < sy < cfg.SCREEN_HEIGHT + 50):
+                continue
+            r = max(3, int(planet.radius * self.zoom))
+            pygame.draw.circle(screen, color, (int(sx), int(sy)), r, 0)
+            if planet.pid == selected_pid:
+                pygame.draw.circle(screen, color, (int(sx), int(sy)), r + 8, 2)
+            is_wp = (player.waypoint and
+                     abs(planet.x - player.waypoint[0]) < 1 and
+                     abs(planet.y - player.waypoint[1]) < 1)
+            if is_wp:
+                pygame.draw.circle(screen, color, (int(sx), int(sy)), r + 14, 1)
+                wp_lbl = self.font_small.render("[WAYPOINT]", True, color)
+                screen.blit(wp_lbl, (sx - wp_lbl.get_width() // 2, sy + r + 20))
+            name_surf = self.font_small.render(planet.name, True, color)
+            screen.blit(name_surf, (sx - name_surf.get_width() // 2, sy + r + 4))
 
         # --- Player marker ---
         px, py = self._world_to_screen(player.x, player.y, player)
@@ -157,13 +197,13 @@ class MapScreen:
         screen.blit(you_lbl, (px - you_lbl.get_width() // 2, py - 22))
 
         # --- Selected planet info ---
-        if sorted_planets and self.selected_idx < len(sorted_planets):
-            sel = sorted_planets[self.selected_idx]
+        if sorted_known and self.selected_idx < len(sorted_known):
+            sel = sorted_known[self.selected_idx]
             dist = math.hypot(sel.x - player.x, sel.y - player.y)
             info_lines = [
                 f"SELECTED: {sel.name} ({sel.planet_type})",
-                f"Distance: {int(dist)} px",
-                f"Position: ({int(sel.x)}, {int(sel.y)})",
+                f"Distance: {self._fmt_distance(dist)}",
+                f"Position: ({self._fmt_distance(sel.x)}, {self._fmt_distance(sel.y)})",
                 "ENTER = set waypoint",
             ]
             box_w = 320
@@ -178,14 +218,17 @@ class MapScreen:
 
         # --- Legend / controls (top-left) ---
         legend = [
-            "MAP — M/Esc:close   +/-:zoom   WASD/arrows:pan   Home:recenter",
-            "TAB:cycle planets   ENTER:set waypoint   BACKSPACE:clear   LMB:select",
-            f"Zoom: {self.zoom:.5f}   1 screen px ≈ {1/self.zoom:.0f} world px",
-            f"Known planets: {len(sorted_planets)}   Position: ({int(player.x)}, {int(player.y)})",
+            "MAP — M/Esc:close  +/-:zoom  WASD:pan  Home:recenter  U:units",
+            "TAB:cycle planets  ENTER:set waypoint  BACKSPACE:clear  LMB:select",
+            f"Zoom: {self.zoom:.5f}   units: {self.unit_mode.upper()}",
+            f"Known planets: {len(sorted_known)}   (buy star charts at stations to reveal more)",
+            f"Position: ({self._fmt_distance(player.x)}, {self._fmt_distance(player.y)})",
         ]
         if player.waypoint:
             wp_dist = math.hypot(player.waypoint[0] - player.x, player.waypoint[1] - player.y)
-            legend.append(f"WAYPOINT: ({int(player.waypoint[0])}, {int(player.waypoint[1])}) — {int(wp_dist)} px")
+            legend.append(
+                f"WAYPOINT: ({self._fmt_distance(player.waypoint[0])}, "
+                f"{self._fmt_distance(player.waypoint[1])}) — {self._fmt_distance(wp_dist)}")
         for i, line in enumerate(legend):
             surf = self.font_small.render(line, True, color)
             screen.blit(surf, (10, 10 + i * 18))
@@ -198,5 +241,5 @@ class MapScreen:
         pygame.draw.line(screen, color, (bx, by), (bx + bar_px, by), 2)
         pygame.draw.line(screen, color, (bx, by - 5), (bx, by + 5), 2)
         pygame.draw.line(screen, color, (bx + bar_px, by - 5), (bx + bar_px, by + 5), 2)
-        sb_lbl = self.font_small.render(f"{int(bar_world)} px", True, color)
+        sb_lbl = self.font_small.render(self._fmt_distance(bar_world), True, color)
         screen.blit(sb_lbl, (bx, by + 8))

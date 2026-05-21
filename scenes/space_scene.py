@@ -101,6 +101,26 @@ class SpaceScene:
                 if key not in self.generated_planets and self._planet_exists_at(gx, gy):
                     self.generated_planets[key] = Planet(gx, gy)
 
+    def _generate_planets_in_rect(self, min_x, min_y, max_x, max_y, max_cells=4000):
+        """Lazily instantiate planets in the given world rectangle.
+        Used to feed the map view so the universe looks infinite when panning."""
+        step = cfg.PLANET_SPACING
+        nx = int((max_x - min_x) / step) + 2
+        ny = int((max_y - min_y) / step) + 2
+        if nx * ny > max_cells:
+            return  # zoomed out too far — skip to avoid lag
+        gx_start = (int(min_x) // step) * step
+        gy_start = (int(min_y) // step) * step
+        gx = gx_start
+        while gx <= max_x + step:
+            gy = gy_start
+            while gy <= max_y + step:
+                key = (gx, gy)
+                if key not in self.generated_planets and self._planet_exists_at(gx, gy):
+                    self.generated_planets[key] = Planet(gx, gy)
+                gy += step
+            gx += step
+
     def _asteroid_exists_at(self, gx, gy):
         """Deterministic check whether an asteroid exists at this grid point."""
         rng = random.Random(f"ast-exists:{gx}:{gy}")
@@ -406,7 +426,10 @@ class SpaceScene:
         # Draw radar (bottom-right) so the player can find asteroids/planets
         self._draw_radar(screen)
 
-        # Draw map overlay
+        # Draw map overlay — first ensure planets exist in the map's visible area
+        if self.map_screen.visible:
+            min_x, min_y, max_x, max_y = self.map_screen.visible_world_rect(self.player)
+            self._generate_planets_in_rect(min_x, min_y, max_x, max_y)
         self.map_screen.draw(screen, self.player, self.generated_planets)
 
         # Draw message

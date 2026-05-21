@@ -8,10 +8,14 @@ class Asteroid:
     Reward is either flat credits or a commodity drop, decided by seed."""
 
     def __init__(self, x, y):
-        self.x = float(x)
-        self.y = float(y)
+        # Grid coords give a stable identity; jitter within the cell hides the grid
         self.aid = hashlib.md5(f"ast:{x},{y}".encode()).hexdigest()[:10]
         rng = random.Random(f"ast:{x}:{y}")
+
+        jitter = cfg.ASTEROID_SPACING * 0.40
+        self.x = float(x) + rng.uniform(-jitter, jitter)
+        self.y = float(y) + rng.uniform(-jitter, jitter)
+
         self.radius = rng.uniform(10, 22)
 
         # Asteroids are supplemental income — trade is the main profit source.

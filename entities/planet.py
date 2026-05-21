@@ -7,17 +7,26 @@ class Planet:
     """A procedurally generated planet at a fixed position in the infinite universe."""
 
     def __init__(self, x, y):
-        # Snap to grid so planets are deterministic at grid positions
+        # Snap to grid for deterministic identity, but scatter actual position
+        # within the cell so the universe doesn't look like a checkerboard.
         gx = snap_to_grid(x, cfg.PLANET_SPACING)
         gy = snap_to_grid(y, cfg.PLANET_SPACING)
-        self.x = float(gx)
-        self.y = float(gy)
         self.pid = planet_id(gx, gy)
         self.name = planet_name(gx, gy)
 
         # Deterministic properties from seed
         import random
         rng = random.Random(self.pid)
+
+        # Random offset within ±40% of cell — origin stays put for the start planet
+        if gx == 0 and gy == 0:
+            self.x = 0.0
+            self.y = 0.0
+        else:
+            jitter = cfg.PLANET_SPACING * 0.40
+            self.x = float(gx) + rng.uniform(-jitter, jitter)
+            self.y = float(gy) + rng.uniform(-jitter, jitter)
+
         self.planet_type = rng.choice(cfg.PLANET_TYPES)
         self.radius = rng.uniform(80, 200)
 
