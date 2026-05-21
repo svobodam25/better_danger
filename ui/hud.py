@@ -22,9 +22,19 @@ class HUD:
             f"FUEL: {int(player.fuel)}/{int(player.max_fuel)}",
             f"HP: {int(player.hp)}/{int(player.max_hp)}",
         ]
-        for text in texts:
-            surf = self.font_small.render(text, True, color)
-            screen.blit(surf, (10, y))
+        if player.fuel <= (player.max_fuel / 2):
+            texts.insert(1, "WARNING: LOW FUEL")
+        
+        for i, text in enumerate(texts):
+            # Pokud je to warning text, můžeme ho nechat blikat
+            if "WARNING" in text:
+                # Jednoduché blikání s pomocí elapsed_time (pokud je elapsed_time jako parametr, jinak jen vykreslíme)
+                if int(elapsed_time * 2) % 2 == 0:
+                    surf = self.font_small.render(text, True, color)
+                    screen.blit(surf, (10, y))
+            else:
+                surf = self.font_small.render(text, True, color)
+                screen.blit(surf, (10, y))
             y += spacing
 
         # Top-right: speed, coordinates, time

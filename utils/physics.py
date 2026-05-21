@@ -2,30 +2,31 @@ import math
 import settings as cfg
 
 
-def apply_thrust(player, dt, reverse=False):
+def apply_thrust(player, dt, reverse=False, boost_multiplier=1.0):
     """Apply newtonian thrust in the direction the ship is facing."""
     if player.fuel <= 0:
         return
 
     rad = math.radians(player.angle)
     direction = -1 if reverse else 1
-    accel = player.acceleration * direction
+    accel = player.acceleration * direction * boost_multiplier
 
     player.vx += math.cos(rad) * accel * dt
     player.vy += math.sin(rad) * accel * dt
 
-    # Fuel consumption
-    fuel_use = cfg.FUEL_CONSUMPTION * dt
+    # Fuel consumption (zvyšuje se při boostu)
+    fuel_use = cfg.FUEL_CONSUMPTION * dt * boost_multiplier
     player.fuel = max(0, player.fuel - fuel_use)
 
     player.thrusting = True
 
 
-def apply_drag(player):
+def apply_drag(player, speed_limit_multiplier=1.0):
     """No drag in space — velocity is preserved. Only cap max speed."""
     speed = math.hypot(player.vx, player.vy)
-    if speed > cfg.MAX_SPEED:
-        scale = cfg.MAX_SPEED / speed
+    max_s = cfg.MAX_SPEED * speed_limit_multiplier
+    if speed > max_s:
+        scale = max_s / speed
         player.vx *= scale
         player.vy *= scale
 
