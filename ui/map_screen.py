@@ -50,9 +50,9 @@ class MapScreen:
         offset_x = (self.pan_x % grid_spacing)
         offset_y = (self.pan_y % grid_spacing)
         for x in range(offset_x, cfg.SCREEN_WIDTH, grid_spacing):
-            pygame.draw.line(screen, (40, 40, 40), (x, 0), (x, cfg.SCREEN_HEIGHT), 1)
+            pygame.draw.line(screen, color, (x, 0), (x, cfg.SCREEN_HEIGHT), 1)
         for y in range(offset_y, cfg.SCREEN_HEIGHT, grid_spacing):
-            pygame.draw.line(screen, (40, 40, 40), (0, y), (cfg.SCREEN_WIDTH, y), 1)
+            pygame.draw.line(screen, color, (0, y), (cfg.SCREEN_WIDTH, y), 1)
 
         # Convert player position to screen
         px = cx + (player.x + self.pan_x) * self.zoom

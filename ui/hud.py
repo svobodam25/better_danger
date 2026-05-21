@@ -64,8 +64,8 @@ class HUD:
         cargo_text = self.font_small.render(f"CARGO: {cargo_used}/{cargo_max}", True, color)
         screen.blit(cargo_text, (bar_x + bar_w + 10, bar_y - 2))
 
-        # Bottom-center: speed bar
-        speed_ratio = min(speed / cfg.MAX_SPEED, 1.0)
+        # Bottom-center: speed bar (referenced against SPEED_DISPLAY_REF, not the hard cap)
+        speed_ratio = min(speed / cfg.SPEED_DISPLAY_REF, 1.0)
         spd_bar_x = cfg.SCREEN_WIDTH // 2 - 100
         spd_bar_y = cfg.SCREEN_HEIGHT - 30
         spd_bar_w = 200

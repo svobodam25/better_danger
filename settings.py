@@ -13,10 +13,12 @@ FPS = 60
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 
-# Physics
-BASE_ACCELERATION = 100.0    # px/s²
-MAX_SPEED = 500.0            # soft cap px/s
+# Physics — true newtonian, no max speed cap. The longer you thrust, the faster you go.
+BASE_ACCELERATION = 100.0    # px/s² forward thrust
+RETRO_THRUST_MULT = 0.5      # retro thrusters are half as powerful — stopping is harder
 BASE_TURN_RATE = 150.0       # degrees/s
+MAX_SPEED = 1_000_000.0      # effectively uncapped; physics never enforces it
+SPEED_DISPLAY_REF = 10_000.0 # reference speed for HUD speed bar (full bar = this speed)
 
 # Player defaults
 START_CREDITS = 500
@@ -32,7 +34,7 @@ MAX_CARGO_UPGRADED = 20
 FUEL_CONSUMPTION = 2.0       # units/s at full thrust
 
 # Docking
-DOCK_PROXIMITY = 60.0        # px distance to trigger docking
+DOCK_PROXIMITY = 150.0       # px distance from planet surface to trigger docking
 DOCK_TOLERANCE_POS = 30.0    # px tolerance for parking
 DOCK_TOLERANCE_ANGLE = 25.0  # degrees tolerance for parking
 
@@ -44,11 +46,14 @@ WRONG_SLOT_PENALTY = 100.0
 # Warp/Hyperdrive
 WARP_FUEL_COST = 30.0
 WARP_COOLDOWN = 3.0          # seconds
+WARP_MIN_DIST = 80_000.0
+WARP_MAX_DIST = 200_000.0
 
-# Universe — procedural generation
-PLANET_SPACING = 600          # avg px between planets (short travel)
+# Universe — procedural generation, Elite-style vast distances
+PLANET_SPACING = 40_000       # px grid step (sparse density makes real distance much larger)
+PLANET_DENSITY = 0.25         # fraction of grid cells that hold a planet
 PLANET_CLUSTER_SIZE = 5       # planets per cluster
-GENERATION_RADIUS = 3000      # generate planets within this radius of player
+GENERATION_RADIUS = 160_000   # generate planets within this radius of player
 
 # Planet types & their price modifiers
 PLANET_TYPES = ["mining", "desert", "tech", "agricultural", "industrial"]
