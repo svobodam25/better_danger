@@ -311,10 +311,7 @@ class DockScene:
         else:
             self.ship_vx = 0.0
 
-<<<<<<< HEAD
-=======
         # Rotate ship to face direction of motion
->>>>>>> origin/main
         if self.ship_vx != 0 or self.ship_vy != 0:
             self.angle = math.degrees(math.atan2(self.ship_vy, self.ship_vx))
 
