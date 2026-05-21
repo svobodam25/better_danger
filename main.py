@@ -70,9 +70,6 @@ class Game:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE and self.scene in ("space",):
-                        self.paused = not self.paused
 
                 # Scene-specific event handling
                 result = None

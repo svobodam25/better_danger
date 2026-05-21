@@ -101,7 +101,7 @@ class SpaceScene:
         """Handle keyboard/mouse events for space scene."""
         # Map screen takes priority
         if self.map_screen.visible:
-            self.map_screen.handle_input(event)
+            self.map_screen.handle_input(event, self.player)
             return None
 
         if event.type == pygame.KEYDOWN:
@@ -116,10 +116,34 @@ class SpaceScene:
                     if warp_jump(self.player, tx, ty):
                         self.player.warp_cooldown = cfg.WARP_COOLDOWN
                         self.message = MessageBox("WARP JUMP!", self.font_large, -40)
+            elif event.key == pygame.K_TAB:
+                self._cycle_waypoint()
+            elif event.key == pygame.K_BACKSPACE:
+                if self.player.waypoint:
+                    self.player.waypoint = None
+                    self.message = MessageBox("Waypoint cleared", self.font_small, -120)
             elif event.key == pygame.K_ESCAPE:
                 return "pause"
 
         return None
+
+    def _cycle_waypoint(self):
+        """Cycle through known planets, setting each as the active waypoint."""
+        planets = sorted(self.player.known_planets.values(),
+                         key=lambda p: math.hypot(p.x - self.player.x, p.y - self.player.y))
+        if not planets:
+            return
+        cur_idx = -1
+        if self.player.waypoint:
+            for i, p in enumerate(planets):
+                if (abs(p.x - self.player.waypoint[0]) < 1 and
+                        abs(p.y - self.player.waypoint[1]) < 1):
+                    cur_idx = i
+                    break
+        next_idx = (cur_idx + 1) % len(planets)
+        target = planets[next_idx]
+        self.player.waypoint = (target.x, target.y)
+        self.message = MessageBox(f"WAYPOINT: {target.name}", self.font_small, -120)
 
     def update(self, dt, keys):
         """Update space scene logic."""
@@ -237,6 +261,70 @@ class SpaceScene:
             right = (px + math.cos(rad - 2.4) * size * 0.6,
                      py + math.sin(rad - 2.4) * size * 0.6)
             pygame.draw.polygon(screen, cfg.WHITE, [tip, left, right], 0)
+
+        # Arrows for the 3 nearest known planets — current waypoint drawn larger/filled.
+        # When a planet is on-screen we skip the arrow (the planet itself is the marker);
+        # the waypoint also gets a crosshair overlay even when on-screen.
+        margin = 50
+        nearest = sorted(self.player.known_planets.values(),
+                         key=lambda p: math.hypot(p.x - self.player.x, p.y - self.player.y))[:3]
+        for planet in nearest:
+            sx = cx + planet.x
+            sy = cy + planet.y
+            is_wp = (self.player.waypoint and
+                     abs(planet.x - self.player.waypoint[0]) < 1 and
+                     abs(planet.y - self.player.waypoint[1]) < 1)
+            on_screen = (margin < sx < cfg.SCREEN_WIDTH - margin and
+                         margin < sy < cfg.SCREEN_HEIGHT - margin)
+            dist = math.hypot(planet.x - self.player.x, planet.y - self.player.y)
+
+            if on_screen:
+                if is_wp:
+                    pygame.draw.circle(screen, cfg.WHITE, (int(sx), int(sy)), 26, 2)
+                    pygame.draw.line(screen, cfg.WHITE,
+                                     (int(sx) - 16, int(sy)), (int(sx) + 16, int(sy)), 1)
+                    pygame.draw.line(screen, cfg.WHITE,
+                                     (int(sx), int(sy) - 16), (int(sx), int(sy) + 16), 1)
+                continue
+
+            # Off-screen: arrow on the edge box pointing toward the planet
+            angle = math.atan2(planet.y - self.player.y, planet.x - self.player.x)
+            cos_a = math.cos(angle)
+            sin_a = math.sin(angle)
+            half_w = cfg.SCREEN_WIDTH / 2 - margin
+            half_h = cfg.SCREEN_HEIGHT / 2 - margin
+            if cos_a != 0 and sin_a != 0:
+                t = min(half_w / abs(cos_a), half_h / abs(sin_a))
+            elif cos_a != 0:
+                t = half_w / abs(cos_a)
+            else:
+                t = half_h / abs(sin_a)
+            ax = cfg.SCREEN_WIDTH // 2 + cos_a * t
+            ay = cfg.SCREEN_HEIGHT // 2 + sin_a * t
+
+            arrow_size = 16 if is_wp else 10
+            tip = (ax + cos_a * arrow_size * 0.4, ay + sin_a * arrow_size * 0.4)
+            a1 = (ax - math.cos(angle - 2.4) * arrow_size,
+                  ay - math.sin(angle - 2.4) * arrow_size)
+            a2 = (ax - math.cos(angle + 2.4) * arrow_size,
+                  ay - math.sin(angle + 2.4) * arrow_size)
+            pygame.draw.polygon(screen, cfg.WHITE, [tip, a1, a2], 0 if is_wp else 1)
+
+            lbl_text = f"{planet.name}  {int(dist)}px" if is_wp else planet.name
+            name_surf = self.font_small.render(lbl_text, True, cfg.WHITE)
+            lx = ax - cos_a * (arrow_size + 10) - name_surf.get_width() // 2
+            ly = ay - sin_a * (arrow_size + 14) - name_surf.get_height() // 2
+            lx = max(2, min(cfg.SCREEN_WIDTH - name_surf.get_width() - 2, lx))
+            ly = max(2, min(cfg.SCREEN_HEIGHT - name_surf.get_height() - 2, ly))
+            screen.blit(name_surf, (int(lx), int(ly)))
+
+        # Top-center waypoint distance readout
+        if self.player.waypoint:
+            wx, wy = self.player.waypoint
+            wp_dist = math.hypot(wx - self.player.x, wy - self.player.y)
+            wp_text = self.font_small.render(f"WAYPOINT: {int(wp_dist)} px", True, cfg.WHITE)
+            screen.blit(wp_text,
+                        (cfg.SCREEN_WIDTH // 2 - wp_text.get_width() // 2, 70))
 
         # Draw HUD
         self.hud.draw(screen, self.player, self.elapsed_time)
