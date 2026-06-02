@@ -59,6 +59,9 @@ class Player:
         # Mined asteroid IDs (so they don't respawn on regeneration)
         self.mined_asteroids = set()
 
+        # Last damage source (used for the death screen)
+        self.last_damage_cause = None
+
     def cargo_used(self):
         total = 0
         for item in self.inventory.values():
@@ -165,8 +168,10 @@ class Player:
     def has_upgrade(self, upgrade_id):
         return upgrade_id in self.upgrades
 
-    def damage(self, amount):
+    def damage(self, amount, cause=None):
         self.hp -= amount
+        if cause is not None:
+            self.last_damage_cause = cause
         return self.hp <= 0  # returns True if dead
 
     def repair(self, amount):

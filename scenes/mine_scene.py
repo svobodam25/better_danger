@@ -80,7 +80,7 @@ class MineScene:
 
         if self.heat >= 100:
             self.state = self.STATE_OVERHEAT
-            self.player.damage(cfg.MINE_OVERHEAT_DAMAGE)
+            self.player.damage(cfg.MINE_OVERHEAT_DAMAGE, cause="Mining drill overheated")
             self.result_timer = 0.0
             self._finalize_reward()
             return None

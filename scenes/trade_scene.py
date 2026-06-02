@@ -1,7 +1,7 @@
 import json
 import pygame
 import settings as cfg
-from ui.menu import MenuButton, TextInput, MessageBox
+from ui.menu import MenuButton, TextInput, MessageBox, SaveSlotPicker
 from utils import save as savemod
 
 
@@ -10,12 +10,13 @@ class TradeScene:
 
     SECTIONS = ["BUY", "SELL", "MAPS", "UPGRADES", "REFUEL", "REPAIR", "SAVE"]
 
-    def __init__(self, player, planet, font_small, font_medium, font_large):
+    def __init__(self, player, planet, font_small, font_medium, font_large, font_huge=None):
         self.player = player
         self.planet = planet
         self.font_small = font_small
         self.font_medium = font_medium
         self.font_large = font_large
+        self.font_huge = font_huge or font_large
         self.current_section = 0
         self.scroll_offset = 0
         self.selected_item = 0
@@ -29,6 +30,9 @@ class TradeScene:
         self._last_row_click_time = 0
         self._last_row_click_idx = -1
 
+        # Slot picker overlay (opened via SAVE tab)
+        self.slot_picker = None
+
         # Load map data
         import os
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -37,6 +41,19 @@ class TradeScene:
 
     def handle_input(self, event):
         """Handle keyboard input for trade menu."""
+        # Slot picker takes over input while open
+        if self.slot_picker is not None:
+            picked = self.slot_picker.handle_input(event)
+            if picked is None:
+                return None
+            if picked[0] == "cancel":
+                self.slot_picker = None
+            elif picked[0] == "select":
+                slot = picked[1]
+                self._save_to_slot(slot)
+                self.slot_picker = None
+            return None
+
         if self.input_active and self.quantity_input:
             val = self.quantity_input.handle_event(event)
             if val is not None:
@@ -175,12 +192,25 @@ class TradeScene:
         elif self.current_section == 5:  # REPAIR
             self._start_quantity_input("repair")
         elif self.current_section == 6:  # SAVE
-            self._do_save()
+            self._open_save_picker()
 
-    def _do_save(self):
-        ok = savemod.save_game(self.player, self.player.known_planets.values())
+    def _open_save_picker(self):
+        self.slot_picker = SaveSlotPicker(
+            SaveSlotPicker.SAVE,
+            self.font_small, self.font_medium, self.font_large, self.font_huge,
+            title="SAVE TO SLOT")
+
+    def _save_to_slot(self, slot):
+        ok = savemod.save_game(
+            self.player,
+            self.player.known_planets.values(),
+            slot=slot,
+            docked_planet=self.planet,
+        )
         if ok:
-            self.message = MessageBox("Game saved.", self.font_medium)
+            # Stash slot on the player so the Game loop can adopt it as current.
+            self.player.last_saved_slot = slot
+            self.message = MessageBox(f"Saved to slot {slot}.", self.font_medium)
         else:
             self.message = MessageBox("Save failed!", self.font_medium)
 
@@ -279,6 +309,11 @@ class TradeScene:
 
     def draw(self, screen):
         """Render the trade scene."""
+        # Slot picker overlay takes over the whole screen
+        if self.slot_picker is not None:
+            self.slot_picker.draw(screen)
+            return
+
         screen.fill(cfg.BLACK)
         color = cfg.WHITE
 

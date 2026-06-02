@@ -135,29 +135,28 @@ class DockScene:
         )
         return top_rect, bot_rect
 
-    def _check_gate_collision(self):
-        """Check if ship collides with the gate barriers."""
-        if self.passed_gate:
-            return False
-        if self.gate_collision_cooldown > 0:
-            return False
+    def _overlaps_gate(self):
+        """Cheap AABB check against either gate bar (ignores cooldown — used for resolution)."""
         ship_rect = self._get_ship_rect()
         top_rect, bot_rect = self._get_gate_rects()
         return ship_rect.colliderect(top_rect) or ship_rect.colliderect(bot_rect)
 
+    def _on_gate_hit(self):
+        """Apply gate-collision damage, throttled by cooldown."""
+        if self.gate_collision_cooldown > 0:
+            return
+        self.player.damage(cfg.WALL_DAMAGE, cause="Smashed into the docking gate")
+        self.gate_collision_cooldown = 0.5
+        self.message = MessageBox(
+            f"GATE! -{int(cfg.WALL_DAMAGE)} HP", self.font_medium, -120)
+
     def _check_passed_gate(self):
-        """Check if ship has successfully passed through the gate."""
+        """Ship has cleared the gate only when its left edge is past the right edge
+        of the barriers (so you can't claim 'passed' while still overlapping)."""
         if self.passed_gate:
             return True
-        # Ship center must be to the right of the gate
-        # and the ship's vertical position within the gap
-        half_gap = self.gate_gap // 2
-        ship_rect = self._get_ship_rect()
-        if ship_rect.left > self.gate_x + 20:
-            # Check if within gap vertically
-            if self.gate_center - half_gap < self.ship_y < self.gate_center + half_gap:
-                return True
-        return False
+        top_rect, _ = self._get_gate_rects()
+        return self._get_ship_rect().left > top_rect.right
 
     def _check_wall_collision(self):
         """Check collision with ceiling and floor."""
@@ -223,7 +222,8 @@ class DockScene:
         })
 
     def _update_traffic(self, dt):
-        """Update traffic ships: move, spawn new ones, remove off-screen, check collisions."""
+        """Update traffic ships: spawn, steer through gate gap, mutual avoidance,
+        check player collision, prune off-screen."""
         # Spawn cooldown
         self.traffic_spawn_cooldown -= dt
         if self.traffic_spawn_cooldown <= 0:
@@ -231,12 +231,73 @@ class DockScene:
             self.traffic_spawn_cooldown = self.traffic_spawn_timer + random.uniform(-0.8, 1.5)
 
         ship_rect = self._get_ship_rect()
+        half_gap = self.gate_gap // 2
+        gate_y = self.gate_center
 
-        # Update and prune traffic ships
+        # Tunables for AI steering
+        approach_range = 280     # x-distance from gate where ships start aligning to gap
+        max_vy = 100             # cap vertical speed
+        separation_dist = 70     # nearby-ship repulsion threshold (px)
+        separation_strength = 220
+
+        # --- Steering & mutual avoidance ---
+        for i, t in enumerate(self.traffic_ships):
+            # Aim for the gap center when approaching the gate
+            dx_to_gate = abs(t["x"] - self.gate_x)
+            if dx_to_gate < approach_range:
+                # Stronger correction the closer we are to the gate
+                urgency = 1.0 + (1.0 - dx_to_gate / approach_range) * 3.0
+                dy = gate_y - t["y"]
+                t["vy"] += dy * urgency * dt
+
+            # Stay inside the hangar/outside corridor between ceiling and floor
+            min_y = self.ceiling_y + t["h"] / 2 + 4
+            max_y = self.floor_y - t["h"] / 2 - 4
+            if t["y"] < min_y:
+                t["vy"] += (min_y - t["y"]) * 4 * dt
+            elif t["y"] > max_y:
+                t["vy"] -= (t["y"] - max_y) * 4 * dt
+
+            # Mutual avoidance — push away from other traffic when close
+            for j, other in enumerate(self.traffic_ships):
+                if i == j:
+                    continue
+                ox = t["x"] - other["x"]
+                oy = t["y"] - other["y"]
+                d = math.hypot(ox, oy)
+                if 0 < d < separation_dist:
+                    # Stronger push when closer; only nudges vy (keep horizontal lane)
+                    push = (separation_dist - d) / separation_dist * separation_strength
+                    if abs(oy) < 1:
+                        # Same row — pick a deterministic side based on indices
+                        oy = 1 if i < j else -1
+                        d = max(d, 1)
+                    t["vy"] += oy / d * push * dt
+
+            # Cap vertical speed
+            if t["vy"] > max_vy:
+                t["vy"] = max_vy
+            elif t["vy"] < -max_vy:
+                t["vy"] = -max_vy
+
+        # --- Move, hard-clamp through the gate, prune, player collision ---
         new_traffic = []
         for tship in self.traffic_ships:
             tship["x"] += tship["vx"] * dt
             tship["y"] += tship["vy"] * dt
+
+            # While the ship is inside the gate's horizontal span, hard-clamp y
+            # to the gap so it physically cannot clip the wall.
+            top_rect, _ = self._get_gate_rects()
+            if top_rect.left - 10 < tship["x"] < top_rect.right + 10:
+                clamp_min = gate_y - half_gap + tship["h"] / 2 + 2
+                clamp_max = gate_y + half_gap - tship["h"] / 2 - 2
+                if tship["y"] < clamp_min:
+                    tship["y"] = clamp_min
+                    tship["vy"] = max(tship["vy"], 0)
+                elif tship["y"] > clamp_max:
+                    tship["y"] = clamp_max
+                    tship["vy"] = min(tship["vy"], 0)
 
             # Check collision with player
             if self.collision_cooldown <= 0:
@@ -246,16 +307,17 @@ class DockScene:
                     tship["w"], tship["h"]
                 )
                 if ship_rect.colliderect(t_rect):
-                    self.player.damage(cfg.SHIP_COLLISION_DAMAGE)
+                    self.player.damage(
+                        cfg.SHIP_COLLISION_DAMAGE,
+                        cause="Collided with hangar traffic")
                     self.player.credits = max(0, self.player.credits - cfg.WRONG_SLOT_PENALTY)
                     self.collision_cooldown = 0.8
                     self.message = MessageBox(
                         f"TRAFFIC CRASH! -{int(cfg.SHIP_COLLISION_DAMAGE)} HP",
                         self.font_medium, -80)
-                    # Push player away
                     self.ship_vx = -tship["vx"] * 0.5
                     self.ship_vy = -tship["vy"] * 0.5
-                    continue  # destroy the traffic ship
+                    continue
 
             # Remove if far off screen
             margin = 80
@@ -269,7 +331,7 @@ class DockScene:
         """Bounce the ship away from walls."""
         if self.collision_cooldown > 0:
             return
-        self.player.damage(cfg.WALL_DAMAGE)
+        self.player.damage(cfg.WALL_DAMAGE, cause="Slammed into the hangar wall")
         self.ship_vy = abs(self.ship_vy) * 0.3 if self.ship_y < cfg.SCREEN_HEIGHT // 2 else -abs(self.ship_vy) * 0.3
         self.ship_y = max(self.ceiling_y + self.ship_h + 5,
                           min(self.floor_y - self.ship_h - 5, self.ship_y))
@@ -316,10 +378,31 @@ class DockScene:
         if self.ship_vx != 0 or self.ship_vy != 0:
             self.angle = math.degrees(math.atan2(self.ship_vy, self.ship_vx))
 
-        # Apply velocity
-        self.ship_x += self.ship_vx * dt
-        self.ship_y += self.ship_vy * dt
+        # Apply velocity — axis-separated so the gate stays solid from any direction.
         self.dock_time += dt
+
+        # X axis first — gate is always solid (also blocks flying back out through the wall)
+        self.ship_x += self.ship_vx * dt
+        if self._overlaps_gate():
+            top_rect, _ = self._get_gate_rects()
+            if self.ship_vx > 0:
+                self.ship_x = top_rect.left - self.ship_w / 2 - 1
+            elif self.ship_vx < 0:
+                self.ship_x = top_rect.right + self.ship_w / 2 + 1
+            self.ship_vx = 0
+            self._on_gate_hit()
+
+        # Y axis
+        self.ship_y += self.ship_vy * dt
+        if self._overlaps_gate():
+            top_rect, bot_rect = self._get_gate_rects()
+            ship_rect = self._get_ship_rect()
+            if ship_rect.colliderect(top_rect):
+                self.ship_y = top_rect.bottom + self.ship_h / 2 + 1
+            elif ship_rect.colliderect(bot_rect):
+                self.ship_y = bot_rect.top - self.ship_h / 2 - 1
+            self.ship_vy = 0
+            self._on_gate_hit()
 
         # Fly-away abort: if ship goes far left (and cooldown passed), return to space
         if self.ship_x < -30 and self.dock_time > 1.0:
@@ -328,32 +411,10 @@ class DockScene:
         # Clamp right edge to screen; left side is open so the player can fly out to abort
         self.ship_x = min(cfg.SCREEN_WIDTH - self.ship_w // 2, self.ship_x)
 
-        # Gate collision — HARD WALL, cannot pass through solid gate
-        if not self.passed_gate:
-            ship_rect = self._get_ship_rect()
-            top_rect, bot_rect = self._get_gate_rects()
-
-            # Hard block: if ship overlaps gate, push it back
-            if ship_rect.colliderect(top_rect):
-                # Ship hit top gate — push to the left side
-                self.ship_x = min(self.ship_x, self.gate_x - top_rect.w // 2 - self.ship_w // 2 - 2)
-                self.ship_vx = 0
-                if self.gate_collision_cooldown <= 0:
-                    self.player.damage(cfg.WALL_DAMAGE)
-                    self.gate_collision_cooldown = 0.5
-                    self.message = MessageBox(f"GATE! -{int(cfg.WALL_DAMAGE)} HP", self.font_medium, -120)
-            elif ship_rect.colliderect(bot_rect):
-                self.ship_x = min(self.ship_x, self.gate_x - bot_rect.w // 2 - self.ship_w // 2 - 2)
-                self.ship_vx = 0
-                if self.gate_collision_cooldown <= 0:
-                    self.player.damage(cfg.WALL_DAMAGE)
-                    self.gate_collision_cooldown = 0.5
-                    self.message = MessageBox(f"GATE! -{int(cfg.WALL_DAMAGE)} HP", self.font_medium, -120)
-
-            # Check if passed through gate successfully
-            if self._check_passed_gate():
-                self.passed_gate = True
-                self.message = MessageBox("ENTERED HANGAR!", self.font_medium, -120)
+        # Check if we've actually crossed to the right side of the gate
+        if not self.passed_gate and self._check_passed_gate():
+            self.passed_gate = True
+            self.message = MessageBox("ENTERED HANGAR!", self.font_medium, -120)
 
         # === TRAFFIC SHIPS (departing & arriving through gate) ===
         self._update_traffic(dt)
@@ -385,7 +446,9 @@ class DockScene:
         for i, slot in enumerate(self.slots):
             if slot["occupied"] and self._check_slot_collision(slot):
                 if self.collision_cooldown <= 0:
-                    self.player.damage(cfg.SHIP_COLLISION_DAMAGE)
+                    self.player.damage(
+                        cfg.SHIP_COLLISION_DAMAGE,
+                        cause="Bumped into a parked ship")
                     self.player.credits = max(0, self.player.credits - cfg.WRONG_SLOT_PENALTY // 2)
                     self.collision_cooldown = 0.8
                     self.message = MessageBox(
@@ -416,7 +479,7 @@ class DockScene:
                 if i != self.target_slot_idx and self._check_parked_in_slot(i):
                     self.wrong_slot_timer += dt
                     if self.wrong_slot_timer > 5.0:
-                        self.player.damage(999)
+                        self.player.damage(999, cause="Refused to leave the wrong docking slot")
                         return "dead"
                     if self.wrong_slot_timer > 3.0 and not hasattr(self, '_warned'):
                         self.message = MessageBox("WRONG SLOT! MOVE!", self.font_large, -60)

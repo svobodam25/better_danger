@@ -270,7 +270,7 @@ class SpaceScene:
                         # Hot approach — hull takes 10 HP per 100 px/s of excess speed.
                         excess = speed - cfg.SAFE_SPEED
                         dmg = (excess / 100.0) * cfg.OVERSPEED_DAMAGE_PER_100
-                        self.player.damage(dmg)
+                        self.player.damage(dmg, cause="Rammed a station at unsafe speed")
                         # Brief cooldown so we don't tick damage every frame while overlapping.
                         self.player.dock_cooldown = 1.0
                         self.message = MessageBox(
