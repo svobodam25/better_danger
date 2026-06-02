@@ -261,9 +261,13 @@ class SpaceScene:
         for key, planet in self.generated_planets.items():
             if check_planet_collision(self.player, planet):
                 if getattr(self.player, 'dock_cooldown', 0) <= 0:
-                    self.target_planet = planet
-                    self.player.know_planet(planet)
-                    return "dock"
+                    speed = math.hypot(self.player.vx, self.player.vy)
+                    if speed < 700:
+                        self.target_planet = planet
+                        self.player.know_planet(planet)
+                        return "dock"
+                    else:
+                        self.message = MessageBox("TOO FAST TO DOCK! (<700)", self.font_small, -100)
 
         # Update message
         if self.message:
