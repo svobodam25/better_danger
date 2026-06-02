@@ -65,16 +65,6 @@ class HUD:
         cargo_text = self.font_small.render(f"CARGO: {cargo_used}/{cargo_max}", True, color)
         screen.blit(cargo_text, (bar_x + bar_w + 10, bar_y - 2))
 
-        # Bottom-center: speed bar (referenced against SPEED_DISPLAY_REF, not the hard cap)
-        speed_ratio = min(speed / cfg.SPEED_DISPLAY_REF, 1.0)
-        spd_bar_x = cfg.SCREEN_WIDTH // 2 - 100
-        spd_bar_y = cfg.SCREEN_HEIGHT - 30
-        spd_bar_w = 200
-        spd_bar_h = 10
-        pygame.draw.rect(screen, color, (spd_bar_x, spd_bar_y, spd_bar_w, spd_bar_h), 1)
-        fill_w = int(speed_ratio * spd_bar_w)
-        pygame.draw.rect(screen, color, (spd_bar_x, spd_bar_y, fill_w, spd_bar_h))
-
         # Bottom-center: controls hint (right corner is reserved for radar)
         hints = [
             "WASD:Fly  Shift:Boost  M:Map  Tab:Waypoint  Esc:Menu",

@@ -262,20 +262,19 @@ class SpaceScene:
             if check_planet_collision(self.player, planet):
                 if getattr(self.player, 'dock_cooldown', 0) <= 0:
                     speed = math.hypot(self.player.vx, self.player.vy)
-                    if speed < cfg.SAFE_SPEED:
-                        self.target_planet = planet
-                        self.player.know_planet(planet)
-                        return "dock"
-                    else:
-                        # Hot approach — hull takes 10 HP per 100 px/s of excess speed.
+                    # Always proceed with docking; an overspeed approach just
+                    # costs hull integrity on the way in (10 HP per 100 px/s
+                    # of excess speed) and leaves a warning on screen.
+                    if speed >= cfg.SAFE_SPEED:
                         excess = speed - cfg.SAFE_SPEED
                         dmg = (excess / 100.0) * cfg.OVERSPEED_DAMAGE_PER_100
                         self.player.damage(dmg, cause="Rammed a station at unsafe speed")
-                        # Brief cooldown so we don't tick damage every frame while overlapping.
-                        self.player.dock_cooldown = 1.0
                         self.message = MessageBox(
-                            f"TOO FAST! HULL STRESS -{int(dmg)} HP  (<{int(cfg.SAFE_SPEED)})",
+                            f"HARD DOCK! -{int(dmg)} HP  (over {int(cfg.SAFE_SPEED)} px/s)",
                             self.font_small, -100)
+                    self.target_planet = planet
+                    self.player.know_planet(planet)
+                    return "dock"
 
         # Update message
         if self.message:

@@ -19,8 +19,10 @@ def apply_thrust(player, dt, reverse=False, boost_multiplier=1.0):
     player.vx += math.cos(rad) * accel * dt
     player.vy += math.sin(rad) * accel * dt
 
-    # Fuel consumption
-    fuel_use = cfg.FUEL_CONSUMPTION * fuel_mult * dt * boost_multiplier
+    # Fuel consumption — boost burns extra fuel for the extra thrust.
+    # Acceleration gets a 1.5x kick but the tank pays double for it.
+    boost_fuel_mult = 2.0 if boost_multiplier > 1.0 else 1.0
+    fuel_use = cfg.FUEL_CONSUMPTION * fuel_mult * dt * boost_fuel_mult
     player.fuel = max(0, player.fuel - fuel_use)
 
     player.thrusting = True
