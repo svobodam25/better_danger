@@ -19,6 +19,13 @@ class MapScreen:
         self.selected_idx = 0  # index into sorted-by-distance known planets
         self.unit_mode = "auto"  # cycled by U: "auto" | "px" | "km"
 
+        # Mouse drag (right button) state for panning
+        self._dragging = False
+        self._drag_last = (0, 0)
+        # Track last left-click for double-click detection (waypoint)
+        self._last_click_time = 0
+        self._last_click_pos = (0, 0)
+
     def _fmt_distance(self, v):
         """Format a world-space distance/position value according to unit_mode.
         Game scale: 1 px = 10 km."""
@@ -111,8 +118,39 @@ class MapScreen:
                         best_d = d
                         best_idx = i
                 self.selected_idx = best_idx
-                # Double-click sets waypoint; single-click only selects.
-                # Here: single-click selects; user presses Enter to confirm.
+                # Double-click on the selected planet sets the waypoint.
+                now = pygame.time.get_ticks()
+                lx, ly = self._last_click_pos
+                if (now - self._last_click_time < 350
+                        and abs(mx - lx) < 8 and abs(my - ly) < 8):
+                    target = planets[best_idx]
+                    player.waypoint = (target.x, target.y)
+                self._last_click_time = now
+                self._last_click_pos = (mx, my)
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
+            # Right button starts drag-to-pan
+            self._dragging = True
+            self._drag_last = event.pos
+        elif event.type == pygame.MOUSEBUTTONUP and event.button == 3:
+            self._dragging = False
+        elif event.type == pygame.MOUSEMOTION and self._dragging:
+            mx, my = event.pos
+            dx = mx - self._drag_last[0]
+            dy = my - self._drag_last[1]
+            # Drag moves the world under the cursor — pan is in world units
+            self.pan_x -= dx / self.zoom
+            self.pan_y -= dy / self.zoom
+            self._drag_last = (mx, my)
+        elif event.type == pygame.MOUSEWHEEL:
+            # Zoom toward the cursor position so the world point under it stays put
+            mx, my = pygame.mouse.get_pos()
+            wx_before, wy_before = self._screen_to_world(mx, my, player)
+            factor = 1.25 if event.y > 0 else (1 / 1.25)
+            new_zoom = max(0.00005, min(1.0, self.zoom * factor))
+            self.zoom = new_zoom
+            wx_after, wy_after = self._screen_to_world(mx, my, player)
+            self.pan_x += wx_before - wx_after
+            self.pan_y += wy_before - wy_after
         return True
 
     def _world_to_screen(self, wx, wy, player):
@@ -219,7 +257,8 @@ class MapScreen:
         # --- Legend / controls (top-left) ---
         legend = [
             "MAP — M/Esc:close  +/-:zoom  WASD:pan  Home:recenter  U:units",
-            "TAB:cycle planets  ENTER:set waypoint  BACKSPACE:clear  LMB:select",
+            "TAB:cycle planets  ENTER:set waypoint  BACKSPACE:clear",
+            "MOUSE — wheel:zoom  RMB drag:pan  LMB:select  LMB x2:waypoint",
             f"Zoom: {self.zoom:.5f}   units: {self.unit_mode.upper()}",
             f"Known planets: {len(sorted_known)}   (buy star charts at stations to reveal more)",
             f"Position: ({self._fmt_distance(player.x)}, {self._fmt_distance(player.y)})",

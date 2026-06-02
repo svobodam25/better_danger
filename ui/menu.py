@@ -1,5 +1,6 @@
 import pygame
 import settings as cfg
+from utils import save as savemod
 
 
 class MenuButton:
@@ -73,6 +74,127 @@ class TextInput:
         screen.blit(text_surf, (
             self.rect.x + 5,
             self.rect.y + (self.rect.h - text_surf.get_height()) // 2,
+        ))
+
+
+class MainMenu:
+    """Title-screen menu with NEW GAME / CONTINUE / EXIT.
+    CONTINUE is disabled when no save file is present."""
+
+    NEW = "new"
+    CONTINUE = "continue"
+    EXIT = "exit"
+
+    def __init__(self, font_small, font_medium, font_large, font_huge):
+        self.font_small = font_small
+        self.font_medium = font_medium
+        self.font_large = font_large
+        self.font_huge = font_huge
+
+        cx = cfg.SCREEN_WIDTH // 2
+        cy = cfg.SCREEN_HEIGHT // 2
+        bw, bh = 320, 56
+        gap = 18
+
+        self.items = [
+            (self.NEW,      "NEW GAME"),
+            (self.CONTINUE, "CONTINUE"),
+            (self.EXIT,     "EXIT"),
+        ]
+        self.buttons = []
+        for i, (action, label) in enumerate(self.items):
+            x = cx - bw // 2
+            y = cy - bh // 2 + i * (bh + gap)
+            self.buttons.append(MenuButton(label, x, y, bw, bh, font_large, action=action))
+
+        self.selected_idx = 0
+        self._refresh_save_state()
+
+    def _refresh_save_state(self):
+        self.has_save = savemod.has_save()
+        if not self.has_save and self.items[self.selected_idx][0] == self.CONTINUE:
+            self.selected_idx = 0
+
+    def reset(self):
+        """Re-check disk state and reset selection when re-entering the menu."""
+        self._refresh_save_state()
+
+    def _is_enabled(self, action):
+        return not (action == self.CONTINUE and not self.has_save)
+
+    def handle_input(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_w, pygame.K_UP):
+                self.selected_idx = self._move(-1)
+            elif event.key in (pygame.K_s, pygame.K_DOWN):
+                self.selected_idx = self._move(1)
+            elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+                action = self.items[self.selected_idx][0]
+                if self._is_enabled(action):
+                    return action
+            elif event.key == pygame.K_ESCAPE:
+                return self.EXIT
+        elif event.type == pygame.MOUSEMOTION:
+            for i, btn in enumerate(self.buttons):
+                if btn.rect.collidepoint(event.pos) and self._is_enabled(self.items[i][0]):
+                    self.selected_idx = i
+                    break
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            for i, btn in enumerate(self.buttons):
+                if btn.rect.collidepoint(event.pos):
+                    action = self.items[i][0]
+                    if self._is_enabled(action):
+                        self.selected_idx = i
+                        return action
+        return None
+
+    def _move(self, delta):
+        n = len(self.items)
+        idx = self.selected_idx
+        for _ in range(n):
+            idx = (idx + delta) % n
+            if self._is_enabled(self.items[idx][0]):
+                return idx
+        return self.selected_idx
+
+    def draw(self, screen):
+        screen.fill(cfg.BLACK)
+
+        title = self.font_huge.render("BETTER DANGER", True, cfg.WHITE)
+        screen.blit(title, (
+            cfg.SCREEN_WIDTH // 2 - title.get_width() // 2,
+            cfg.SCREEN_HEIGHT // 4 - title.get_height() // 2,
+        ))
+        sub = self.font_small.render("Monochrome space trading", True, cfg.WHITE)
+        screen.blit(sub, (
+            cfg.SCREEN_WIDTH // 2 - sub.get_width() // 2,
+            cfg.SCREEN_HEIGHT // 4 + title.get_height() // 2 + 6,
+        ))
+
+        for i, btn in enumerate(self.buttons):
+            action = self.items[i][0]
+            btn.selected = (i == self.selected_idx)
+            if not self._is_enabled(action):
+                # Disabled button — draw dim outline only
+                pygame.draw.rect(screen, cfg.WHITE, btn.rect, 1)
+                text_surf = self.font_large.render(btn.text + "  (no save)", True, cfg.WHITE)
+                tx = btn.rect.x + (btn.rect.w - text_surf.get_width()) // 2
+                ty = btn.rect.y + (btn.rect.h - text_surf.get_height()) // 2
+                # Striped overlay to convey "disabled"
+                screen.blit(text_surf, (tx, ty))
+                for y in range(btn.rect.y, btn.rect.y + btn.rect.h, 4):
+                    pygame.draw.line(screen, cfg.BLACK,
+                                     (btn.rect.x, y), (btn.rect.x + btn.rect.w, y), 1)
+                pygame.draw.rect(screen, cfg.WHITE, btn.rect, 1)
+            else:
+                btn.draw(screen)
+
+        hint = self.font_small.render(
+            "W/S or mouse to move  ENTER to select  ESC to exit",
+            True, cfg.WHITE)
+        screen.blit(hint, (
+            cfg.SCREEN_WIDTH // 2 - hint.get_width() // 2,
+            cfg.SCREEN_HEIGHT - 40,
         ))
 
 

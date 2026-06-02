@@ -14,6 +14,11 @@ from scenes.dock_scene import DockScene
 from scenes.trade_scene import TradeScene
 from scenes.mine_scene import MineScene
 from utils.helpers import snap_to_grid
+from utils import save as savemod
+from ui.menu import MainMenu
+
+
+AUTOSAVE_INTERVAL = 30.0   # seconds between background auto-saves
 
 
 class Game:
@@ -24,6 +29,7 @@ class Game:
         self.screen = pygame.display.set_mode((cfg.SCREEN_WIDTH, cfg.SCREEN_HEIGHT))
         pygame.display.set_caption("Better Danger")
         self.clock = pygame.time.Clock()
+        self.autosave_timer = 0.0
 
         # Fonts (try system monospace, fallback to default)
         font_name = "consolas" if sys.platform == "win32" else None
@@ -38,19 +44,21 @@ class Game:
             self.font_large = pygame.font.Font(None, cfg.FONT_LARGE)
             self.font_huge = pygame.font.Font(None, cfg.FONT_HUGE)
 
-        # Game state
-        self.scene = "space"  # "space", "dock", "trade", "menu", "dead"
+        # Game state — start at title screen; actual game scenes created on demand.
+        self.scene = "menu"  # "menu", "space", "dock", "trade", "mine", "dead"
         self.running = True
         self.paused = False
 
-        # Player
-        self.player = Player(0, 0)
-
-        # Scenes
-        self.space_scene = SpaceScene(self.player, self.font_small, self.font_medium, self.font_large)
+        # Player / scenes are created when the user picks New or Continue from the menu.
+        self.player = None
+        self.space_scene = None
         self.dock_scene = None
         self.trade_scene = None
         self.mine_scene = None
+
+        # Title screen
+        self.main_menu = MainMenu(
+            self.font_small, self.font_medium, self.font_large, self.font_huge)
 
         # Reveal queue (maps bought)
         self.pending_reveals = 0
@@ -58,6 +66,55 @@ class Game:
 
         # Death timer (show death screen briefly)
         self.death_timer = 0.0
+
+    def _start_new_game(self):
+        """Wipe any existing save and start a fresh run."""
+        savemod.delete_save()
+        self.player = Player(0, 0)
+        self.space_scene = SpaceScene(
+            self.player, self.font_small, self.font_medium, self.font_large)
+        self.dock_scene = None
+        self.trade_scene = None
+        self.mine_scene = None
+        self.scene = "space"
+        self.paused = False
+        self.autosave_timer = 0.0
+
+    def _continue_game(self):
+        """Load saved state and resume in the space scene. Falls back to New if save is bad."""
+        save_data = savemod.load_game()
+        if not save_data:
+            self._start_new_game()
+            return
+        self.player = Player(0, 0)
+        self.space_scene = SpaceScene(
+            self.player, self.font_small, self.font_medium, self.font_large)
+        try:
+            savemod.apply_to_player(self.player, save_data)
+            for gx, gy in save_data.get("known_planet_grid", []):
+                planet = self.space_scene._get_or_generate_planet(gx, gy)
+                self.player.know_planet(planet)
+        except (KeyError, TypeError, ValueError):
+            savemod.delete_save()
+            self._start_new_game()
+            return
+        self.dock_scene = None
+        self.trade_scene = None
+        self.mine_scene = None
+        self.scene = "space"
+        self.paused = False
+        self.autosave_timer = 0.0
+
+    def _return_to_menu(self):
+        """Go back to the title screen (used after death)."""
+        self.player = None
+        self.space_scene = None
+        self.dock_scene = None
+        self.trade_scene = None
+        self.mine_scene = None
+        self.paused = False
+        self.scene = "menu"
+        self.main_menu.reset()
 
     def run(self):
         """Main game loop."""
@@ -72,10 +129,20 @@ class Game:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
+                    if self.scene != "menu":
+                        self._autosave()
 
                 # Scene-specific event handling
                 result = None
-                if self.scene == "space":
+                if self.scene == "menu":
+                    action = self.main_menu.handle_input(event)
+                    if action == MainMenu.NEW:
+                        self._start_new_game()
+                    elif action == MainMenu.CONTINUE:
+                        self._continue_game()
+                    elif action == MainMenu.EXIT:
+                        self.running = False
+                elif self.scene == "space":
                     result = self.space_scene.handle_input(event)
                 elif self.scene == "dock" and self.dock_scene:
                     result = self.dock_scene.handle_input(event)
@@ -89,6 +156,12 @@ class Game:
                 if result == "pause":
                     self.paused = not self.paused
 
+            # Title screen render — no game logic, no autosave, no death handling.
+            if self.scene == "menu":
+                self.main_menu.draw(self.screen)
+                pygame.display.flip()
+                continue
+
             if self.paused:
                 self._draw_pause()
                 continue
@@ -97,8 +170,7 @@ class Game:
                 self.death_timer -= dt
                 self._draw_death()
                 if self.death_timer <= 0:
-                    # Restart
-                    self._restart()
+                    self._return_to_menu()
                 continue
 
             # Update based on current scene
@@ -110,6 +182,7 @@ class Game:
                         self.dock_scene = DockScene(
                             self.player, self.font_small, self.font_medium, self.font_large)
                         self.scene = "dock"
+                        self._autosave()
                 elif result == "mine":
                     ast = self.space_scene.target_asteroid
                     if ast:
@@ -154,6 +227,7 @@ class Game:
                     # Go back to space
                     self.scene = "space"
                     self.player.dock_cooldown = 3.0
+                    self._autosave()
                     # Push player away from planet
                     target = self.space_scene.get_target_planet()
                     if target:
@@ -172,6 +246,15 @@ class Game:
             if self.player.is_dead() and self.scene != "dead":
                 self.scene = "dead"
                 self.death_timer = 3.0
+                # Death wipes the save so the next launch is a fresh run
+                savemod.delete_save()
+
+            # Background auto-save while alive — skip in dead/paused states
+            if self.scene != "dead":
+                self.autosave_timer += dt
+                if self.autosave_timer >= AUTOSAVE_INTERVAL:
+                    self.autosave_timer = 0.0
+                    self._autosave()
 
             pygame.display.flip()
 
@@ -201,15 +284,11 @@ class Game:
             self.player.vx = 0
             self.player.vy = 0
 
-    def _restart(self):
-        """Restart the game after death."""
-        self.player = Player(0, 0)
-        self.space_scene = SpaceScene(self.player, self.font_small, self.font_medium, self.font_large)
-        self.dock_scene = None
-        self.trade_scene = None
-        self.scene = "space"
-        self.pending_reveals = 0
-        self.paused = False
+    def _autosave(self):
+        """Persist the current player + known-planet state to disk."""
+        if self.player is None or self.player.is_dead():
+            return
+        savemod.save_game(self.player, self.player.known_planets.values())
 
     def _draw_pause(self):
         """Draw pause overlay."""
@@ -234,7 +313,7 @@ class Game:
             cfg.SCREEN_WIDTH // 2 - death_text.get_width() // 2,
             cfg.SCREEN_HEIGHT // 2 - death_text.get_height() // 2,
         ))
-        restart_text = self.font_medium.render(f"Restarting in {int(max(0, self.death_timer))}...", True, cfg.WHITE)
+        restart_text = self.font_medium.render(f"Returning to menu in {int(max(0, self.death_timer))}...", True, cfg.WHITE)
         self.screen.blit(restart_text, (
             cfg.SCREEN_WIDTH // 2 - restart_text.get_width() // 2,
             cfg.SCREEN_HEIGHT // 2 + 40,

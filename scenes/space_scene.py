@@ -355,6 +355,14 @@ class SpaceScene:
         margin = 50
         nearest = sorted(self.player.known_planets.values(),
                          key=lambda p: math.hypot(p.x - self.player.x, p.y - self.player.y))[:3]
+        # Ensure the active waypoint planet always gets its arrow, even when far away.
+        if self.player.waypoint:
+            wx, wy = self.player.waypoint
+            for planet in self.player.known_planets.values():
+                if abs(planet.x - wx) < 1 and abs(planet.y - wy) < 1:
+                    if planet not in nearest:
+                        nearest.append(planet)
+                    break
         for planet in nearest:
             sx = cx + planet.x
             sy = cy + planet.y
