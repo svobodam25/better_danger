@@ -20,6 +20,11 @@ BASE_TURN_RATE = 150.0       # degrees/s
 MAX_SPEED = 1_000_000.0      # effectively uncapped; physics never enforces it
 SPEED_DISPLAY_REF = 10_000.0 # reference speed for HUD speed bar (full bar = this speed)
 
+# Hull integrity speed limit — pushing past this damages the ship.
+# 10 HP per second per 100 px/s of excess speed.
+SAFE_SPEED = 1000.0
+OVERSPEED_DAMAGE_PER_100 = 10.0
+
 # Player defaults
 START_CREDITS = 1500         # buffer for early learning trips
 START_FUEL = 100.0

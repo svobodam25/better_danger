@@ -77,7 +77,7 @@ class HUD:
 
         # Bottom-center: controls hint (right corner is reserved for radar)
         hints = [
-            "WASD:Fly  Shift:Boost  M:Map  Tab:Waypoint  Esc:Pause",
+            "WASD:Fly  Shift:Boost  M:Map  Tab:Waypoint  Esc:Menu",
         ]
         if player.has_hyperdrive:
             hints[0] += "  J:WARP"

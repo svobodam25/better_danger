@@ -2,12 +2,13 @@ import json
 import pygame
 import settings as cfg
 from ui.menu import MenuButton, TextInput, MessageBox
+from utils import save as savemod
 
 
 class TradeScene:
     """Scene 3: Trading GUI after successful docking."""
 
-    SECTIONS = ["BUY", "SELL", "MAPS", "UPGRADES", "REFUEL", "REPAIR"]
+    SECTIONS = ["BUY", "SELL", "MAPS", "UPGRADES", "REFUEL", "REPAIR", "SAVE"]
 
     def __init__(self, player, planet, font_small, font_medium, font_large):
         self.player = player
@@ -23,6 +24,10 @@ class TradeScene:
         self.quantity_input = None
         self.buy_mode = True  # True = buying, False = selling
         self._leave_requested = False
+
+        # Track last LMB click for double-click → action on item rows.
+        self._last_row_click_time = 0
+        self._last_row_click_idx = -1
 
         # Load map data
         import os
@@ -78,8 +83,54 @@ class TradeScene:
             elif event.key == pygame.K_6:
                 self.current_section = 5
                 self.selected_item = 0
+            elif event.key == pygame.K_7:
+                self.current_section = 6
+                self.selected_item = 0
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            self._handle_mouse_click(event.pos)
 
         return None
+
+    def _handle_mouse_click(self, pos):
+        """Mouse support: click tab to switch section, click row to select,
+        double-click row to confirm (same as Enter)."""
+        mx, my = pos
+
+        # Tab strip — keep these dims in sync with draw()
+        tab_y = 70
+        tab_h = 28
+        tab_w = cfg.SCREEN_WIDTH // len(self.SECTIONS)
+        if tab_y <= my <= tab_y + tab_h:
+            idx = mx // tab_w
+            if 0 <= idx < len(self.SECTIONS):
+                if idx != self.current_section:
+                    self.current_section = int(idx)
+                    self.scroll_offset = 0
+                    self.selected_item = 0
+                return
+
+        # Item rows — match _draw_item_row hitbox
+        content_y = 110
+        row_h = 36
+        items = self._get_section_items()
+        if not items or mx < 40 or mx > cfg.SCREEN_WIDTH - 40:
+            return
+        rel = my - (content_y - 2)
+        if rel < 0:
+            return
+        idx = rel // row_h
+        if 0 <= idx < len(items):
+            idx = int(idx)
+            now = pygame.time.get_ticks()
+            if (idx == self.selected_item
+                    and idx == self._last_row_click_idx
+                    and now - self._last_row_click_time < 350):
+                # Double-click — perform the action
+                self._handle_enter()
+            else:
+                self.selected_item = idx
+            self._last_row_click_time = now
+            self._last_row_click_idx = idx
 
     def _get_section_items(self):
         """Get list of items for the current section."""
@@ -96,6 +147,9 @@ class TradeScene:
             return [("refuel", {"name": "Refuel", "cost": 1, "desc": "1 credit per fuel unit"})]
         elif self.current_section == 5:  # REPAIR
             return [("repair", {"name": "Repair", "cost": 2, "desc": "2 credits per HP"})]
+        elif self.current_section == 6:  # SAVE
+            return [("save", {"name": "Save Game",
+                              "desc": "Persist current progress (only available at stations)"})]
         return []
 
     def _handle_enter(self):
@@ -120,6 +174,15 @@ class TradeScene:
             self._start_quantity_input("refuel")
         elif self.current_section == 5:  # REPAIR
             self._start_quantity_input("repair")
+        elif self.current_section == 6:  # SAVE
+            self._do_save()
+
+    def _do_save(self):
+        ok = savemod.save_game(self.player, self.player.known_planets.values())
+        if ok:
+            self.message = MessageBox("Game saved.", self.font_medium)
+        else:
+            self.message = MessageBox("Save failed!", self.font_medium)
 
     def _start_quantity_input(self, item_id):
         self.input_active = True
@@ -298,11 +361,14 @@ class TradeScene:
                     needed = max(0, int(self.player.max_hp - self.player.hp))
                     text = f"Repair Ship — 2 cr per HP  |  Need: {needed} HP  |  Cost: {needed * 2} cr"
                     self._draw_item_row(screen, y, text, is_selected, color)
+                elif self.current_section == 6:  # SAVE
+                    text = f"{item_data['name']:<24} {item_data['desc']}"
+                    self._draw_item_row(screen, y, text, is_selected, color)
 
         # Help text
         help_y = cfg.SCREEN_HEIGHT - 40
         help_text = self.font_small.render(
-            "TAB:Switch Section  1-6:Quick Select  UP/DOWN:Navigate  ENTER:Action  ESC:Leave",
+            "TAB/click tab:Switch  1-7:Quick  UP/DOWN/click:Navigate  ENTER/dbl-click:Action  ESC:Leave",
             True, color)
         screen.blit(help_text, (cfg.SCREEN_WIDTH // 2 - help_text.get_width() // 2, help_y))
 

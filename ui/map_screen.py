@@ -22,9 +22,16 @@ class MapScreen:
         # Mouse drag (right button) state for panning
         self._dragging = False
         self._drag_last = (0, 0)
+        # Left-button drag-to-pan: defer click semantics until release so we can
+        # tell a click apart from a drag.
+        self._lmb_down = False
+        self._lmb_press_pos = (0, 0)
+        self._lmb_drag = False
         # Track last left-click for double-click detection (waypoint)
         self._last_click_time = 0
         self._last_click_pos = (0, 0)
+        # Pixel threshold before a press counts as a drag instead of a click.
+        self._drag_threshold = 5
 
     def _fmt_distance(self, v):
         """Format a world-space distance/position value according to unit_mode.
@@ -106,41 +113,62 @@ class MapScreen:
             elif event.key == pygame.K_BACKSPACE:
                 player.waypoint = None
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            mx, my = event.pos
-            wx, wy = self._screen_to_world(mx, my, player)
-            planets = self._sorted_planets(player)
-            if planets:
-                best_idx = 0
-                best_d = float("inf")
-                for i, p in enumerate(planets):
-                    d = math.hypot(p.x - wx, p.y - wy)
-                    if d < best_d:
-                        best_d = d
-                        best_idx = i
-                self.selected_idx = best_idx
-                # Double-click on the selected planet sets the waypoint.
-                now = pygame.time.get_ticks()
-                lx, ly = self._last_click_pos
-                if (now - self._last_click_time < 350
-                        and abs(mx - lx) < 8 and abs(my - ly) < 8):
-                    target = planets[best_idx]
-                    player.waypoint = (target.x, target.y)
-                self._last_click_time = now
-                self._last_click_pos = (mx, my)
+            # Defer click vs drag decision until release / first significant motion.
+            self._lmb_down = True
+            self._lmb_drag = False
+            self._lmb_press_pos = event.pos
+            self._drag_last = event.pos
+        elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+            if self._lmb_down and not self._lmb_drag:
+                # Treat as a click — select nearest planet (and double-click → waypoint).
+                mx, my = event.pos
+                wx, wy = self._screen_to_world(mx, my, player)
+                planets = self._sorted_planets(player)
+                if planets:
+                    best_idx = 0
+                    best_d = float("inf")
+                    for i, p in enumerate(planets):
+                        d = math.hypot(p.x - wx, p.y - wy)
+                        if d < best_d:
+                            best_d = d
+                            best_idx = i
+                    self.selected_idx = best_idx
+                    now = pygame.time.get_ticks()
+                    lx, ly = self._last_click_pos
+                    if (now - self._last_click_time < 350
+                            and abs(mx - lx) < 8 and abs(my - ly) < 8):
+                        target = planets[best_idx]
+                        player.waypoint = (target.x, target.y)
+                    self._last_click_time = now
+                    self._last_click_pos = (mx, my)
+            self._lmb_down = False
+            self._lmb_drag = False
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
-            # Right button starts drag-to-pan
+            # Right button also starts drag-to-pan (kept for parity with LMB)
             self._dragging = True
             self._drag_last = event.pos
         elif event.type == pygame.MOUSEBUTTONUP and event.button == 3:
             self._dragging = False
-        elif event.type == pygame.MOUSEMOTION and self._dragging:
+        elif event.type == pygame.MOUSEMOTION:
             mx, my = event.pos
-            dx = mx - self._drag_last[0]
-            dy = my - self._drag_last[1]
-            # Drag moves the world under the cursor — pan is in world units
-            self.pan_x -= dx / self.zoom
-            self.pan_y -= dy / self.zoom
-            self._drag_last = (mx, my)
+            if self._lmb_down:
+                # Once moved past threshold, this press is a drag — pan the map.
+                if not self._lmb_drag:
+                    px, py = self._lmb_press_pos
+                    if abs(mx - px) > self._drag_threshold or abs(my - py) > self._drag_threshold:
+                        self._lmb_drag = True
+                if self._lmb_drag:
+                    dx = mx - self._drag_last[0]
+                    dy = my - self._drag_last[1]
+                    self.pan_x -= dx / self.zoom
+                    self.pan_y -= dy / self.zoom
+                    self._drag_last = (mx, my)
+            elif self._dragging:
+                dx = mx - self._drag_last[0]
+                dy = my - self._drag_last[1]
+                self.pan_x -= dx / self.zoom
+                self.pan_y -= dy / self.zoom
+                self._drag_last = (mx, my)
         elif event.type == pygame.MOUSEWHEEL:
             # Zoom toward the cursor position so the world point under it stays put
             mx, my = pygame.mouse.get_pos()

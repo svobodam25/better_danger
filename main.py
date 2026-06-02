@@ -18,9 +18,6 @@ from utils import save as savemod
 from ui.menu import MainMenu
 
 
-AUTOSAVE_INTERVAL = 30.0   # seconds between background auto-saves
-
-
 class Game:
     """Main game class managing scenes and game loop."""
 
@@ -29,7 +26,6 @@ class Game:
         self.screen = pygame.display.set_mode((cfg.SCREEN_WIDTH, cfg.SCREEN_HEIGHT))
         pygame.display.set_caption("Better Danger")
         self.clock = pygame.time.Clock()
-        self.autosave_timer = 0.0
 
         # Fonts (try system monospace, fallback to default)
         font_name = "consolas" if sys.platform == "win32" else None
@@ -78,7 +74,6 @@ class Game:
         self.mine_scene = None
         self.scene = "space"
         self.paused = False
-        self.autosave_timer = 0.0
 
     def _continue_game(self):
         """Load saved state and resume in the space scene. Falls back to New if save is bad."""
@@ -103,7 +98,6 @@ class Game:
         self.mine_scene = None
         self.scene = "space"
         self.paused = False
-        self.autosave_timer = 0.0
 
     def _return_to_menu(self):
         """Go back to the title screen (used after death)."""
@@ -129,8 +123,8 @@ class Game:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
-                    if self.scene != "menu":
-                        self._autosave()
+                    # Save only happens at stations; quitting from space discards progress
+                    # since the last station visit. Persisted state stays intact on disk.
 
                 # Scene-specific event handling
                 result = None
@@ -144,6 +138,9 @@ class Game:
                         self.running = False
                 elif self.scene == "space":
                     result = self.space_scene.handle_input(event)
+                    if result == "menu":
+                        self._return_to_menu()
+                        result = None
                 elif self.scene == "dock" and self.dock_scene:
                     result = self.dock_scene.handle_input(event)
                 elif self.scene == "trade" and self.trade_scene:
@@ -152,9 +149,6 @@ class Game:
                     result = self.mine_scene.handle_input(event)
                     if result == "leave":
                         self.scene = "space"
-
-                if result == "pause":
-                    self.paused = not self.paused
 
             # Title screen render — no game logic, no autosave, no death handling.
             if self.scene == "menu":
@@ -182,7 +176,6 @@ class Game:
                         self.dock_scene = DockScene(
                             self.player, self.font_small, self.font_medium, self.font_large)
                         self.scene = "dock"
-                        self._autosave()
                 elif result == "mine":
                     ast = self.space_scene.target_asteroid
                     if ast:
@@ -200,13 +193,14 @@ class Game:
             elif self.scene == "dock":
                 result = self.dock_scene.update(dt, keys)
                 if result == "success":
-                    # Transition to trade
+                    # Transition to trade — now docked at the station, safe to autosave.
                     target = self.space_scene.get_target_planet()
                     if target:
                         self.trade_scene = TradeScene(
                             self.player, target,
                             self.font_small, self.font_medium, self.font_large)
                         self.scene = "trade"
+                        self._autosave()
                 elif result == "dead":
                     self.scene = "dead"
                     self.death_timer = 3.0
@@ -248,13 +242,6 @@ class Game:
                 self.death_timer = 3.0
                 # Death wipes the save so the next launch is a fresh run
                 savemod.delete_save()
-
-            # Background auto-save while alive — skip in dead/paused states
-            if self.scene != "dead":
-                self.autosave_timer += dt
-                if self.autosave_timer >= AUTOSAVE_INTERVAL:
-                    self.autosave_timer = 0.0
-                    self._autosave()
 
             pygame.display.flip()
 

@@ -188,7 +188,7 @@ class SpaceScene:
                     self.player.waypoint = None
                     self.message = MessageBox("Waypoint cleared", self.font_small, -120)
             elif event.key == pygame.K_ESCAPE:
-                return "pause"
+                return "menu"
 
         return None
 
@@ -262,12 +262,20 @@ class SpaceScene:
             if check_planet_collision(self.player, planet):
                 if getattr(self.player, 'dock_cooldown', 0) <= 0:
                     speed = math.hypot(self.player.vx, self.player.vy)
-                    if speed < 700:
+                    if speed < cfg.SAFE_SPEED:
                         self.target_planet = planet
                         self.player.know_planet(planet)
                         return "dock"
                     else:
-                        self.message = MessageBox("TOO FAST TO DOCK! (<700)", self.font_small, -100)
+                        # Hot approach — hull takes 10 HP per 100 px/s of excess speed.
+                        excess = speed - cfg.SAFE_SPEED
+                        dmg = (excess / 100.0) * cfg.OVERSPEED_DAMAGE_PER_100
+                        self.player.damage(dmg)
+                        # Brief cooldown so we don't tick damage every frame while overlapping.
+                        self.player.dock_cooldown = 1.0
+                        self.message = MessageBox(
+                            f"TOO FAST! HULL STRESS -{int(dmg)} HP  (<{int(cfg.SAFE_SPEED)})",
+                            self.font_small, -100)
 
         # Update message
         if self.message:
