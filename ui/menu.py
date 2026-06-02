@@ -177,7 +177,7 @@ class MainMenu:
             if not self._is_enabled(action):
                 # Disabled button — draw dim outline only
                 pygame.draw.rect(screen, cfg.WHITE, btn.rect, 1)
-                text_surf = self.font_large.render(btn.text + "  (no save)", True, cfg.WHITE)
+                text_surf = self.font_large.render(btn.text, True, cfg.WHITE)
                 tx = btn.rect.x + (btn.rect.w - text_surf.get_width()) // 2
                 ty = btn.rect.y + (btn.rect.h - text_surf.get_height()) // 2
                 # Striped overlay to convey "disabled"
