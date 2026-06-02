@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "saved_at": 1780394892.9027405,
+  "last_station": "Free Port",
+  "player": {
+    "x": 79948.47474471247,
+    "y": -14102.537330940493,
+    "vx": 0.0,
+    "vy": 0.0,
+    "angle": 331.34999999999997,
+    "dock_cooldown": 3.0,
+    "fuel": 40.47599999999612,
+    "max_fuel": 150.0,
+    "hp": 85.0,
+    "max_hp": 100.0,
+    "max_cargo": 10,
+    "acceleration": 100.0,
+    "turn_rate": 150.0,
+    "credits": 1110.0,
+    "total_earned": 620,
+    "inventory": {},
+    "upgrades": [
+      "fuel_tank"
+    ],
+    "has_retro": true,
+    "has_hyperdrive": false,
+    "has_long_scanner": false,
+    "has_mining_drill": false,
+    "waypoint": [
+      79644.47102296219,
+      -14117.726209386798
+    ],
+    "mined_asteroids": []
+  },
+  "known_planet_grid": [
+    [
+      0,
+      0
+    ],
+    [
+      79644,
+      -14117
+    ]
+  ]
+}

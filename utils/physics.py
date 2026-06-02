@@ -14,7 +14,7 @@ def apply_thrust(player, dt, reverse=False, boost_multiplier=1.0):
         fuel_mult = cfg.RETRO_THRUST_MULT
     else:
         accel = player.acceleration * boost_multiplier
-        fuel_mult = 1.0
+        fuel_mult = 1.1
 
     player.vx += math.cos(rad) * accel * dt
     player.vy += math.sin(rad) * accel * dt

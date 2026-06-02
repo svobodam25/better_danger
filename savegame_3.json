@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "saved_at": 1780395308.7155201,
+  "last_station": "Port Hub",
+  "player": {
+    "x": 334.6003819447976,
+    "y": 0.0,
+    "vx": 0.0,
+    "vy": 0.0,
+    "angle": 0.0,
+    "dock_cooldown": 3.0,
+    "fuel": 100.0,
+    "max_fuel": 100.0,
+    "hp": 100.0,
+    "max_hp": 100.0,
+    "max_cargo": 10,
+    "acceleration": 100.0,
+    "turn_rate": 150.0,
+    "credits": 1500,
+    "total_earned": 0,
+    "inventory": {},
+    "upgrades": [],
+    "has_retro": true,
+    "has_hyperdrive": false,
+    "has_long_scanner": false,
+    "has_mining_drill": false,
+    "waypoint": null,
+    "mined_asteroids": []
+  },
+  "known_planet_grid": [
+    [
+      0,
+      0
+    ]
+  ]
+}
